@@ -1,0 +1,235 @@
+import 'movie_model.dart';
+import 'genre_model.dart';
+
+enum RoomPhase {
+  lobby,          // Esperando participantes
+  categories,     // Fase 1: votación de categorías
+  categoryMatch,  // Celebración de categorías ganadoras antes de películas
+  movies,         // Fase 2: votación de películas de categorías coincidentes
+  result,         // Match encontrado o fallback del randomizer
+}
+
+enum RoomStatus {
+  waiting,
+  categories,
+  movies,
+  completed,
+  expired,
+}
+
+class RoomMemberModel {
+  final String id;
+  final String userId;
+  final String username;
+  final String avatarUrl;
+  final bool isHost;
+  final bool isReady;
+  final String phase;
+  final DateTime joinedAt;
+  final Map<int, bool> categoryVotes; // genreId -> approved
+  final Map<int, bool> movieVotes;    // movieId -> approved
+
+  const RoomMemberModel({
+    required this.id,
+    required this.userId,
+    required this.username,
+    required this.avatarUrl,
+    this.isHost = false,
+    this.isReady = false,
+    this.phase = 'lobby',
+    required this.joinedAt,
+    this.categoryVotes = const {},
+    this.movieVotes = const {},
+  });
+
+  RoomMemberModel copyWith({
+    String? id,
+    String? userId,
+    String? username,
+    String? avatarUrl,
+    bool? isHost,
+    bool? isReady,
+    String? phase,
+    DateTime? joinedAt,
+    Map<int, bool>? categoryVotes,
+    Map<int, bool>? movieVotes,
+  }) {
+    return RoomMemberModel(
+      id: id ?? this.id,
+      userId: userId ?? this.userId,
+      username: username ?? this.username,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      isHost: isHost ?? this.isHost,
+      isReady: isReady ?? this.isReady,
+      phase: phase ?? this.phase,
+      joinedAt: joinedAt ?? this.joinedAt,
+      categoryVotes: categoryVotes ?? this.categoryVotes,
+      movieVotes: movieVotes ?? this.movieVotes,
+    );
+  }
+
+  factory RoomMemberModel.fromJson(Map<String, dynamic> json) {
+    return RoomMemberModel(
+      id: json['id'] as String? ?? '',
+      userId: json['user_id'] as String? ?? '',
+      username: json['username'] as String? ?? 'Invitado',
+      avatarUrl: json['avatar_url'] as String? ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      isHost: json['is_host'] as bool? ?? false,
+      isReady: json['is_ready'] as bool? ?? false,
+      phase: json['phase'] as String? ?? 'lobby',
+      joinedAt: json['joined_at'] != null
+          ? DateTime.tryParse(json['joined_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      categoryVotes: (json['category_votes'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(int.parse(k), v as bool),
+          ) ??
+          {},
+      movieVotes: (json['movie_votes'] as Map<String, dynamic>?)?.map(
+            (k, v) => MapEntry(int.parse(k), v as bool),
+          ) ??
+          {},
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'user_id': userId,
+      'username': username,
+      'avatar_url': avatarUrl,
+      'is_host': isHost,
+      'is_ready': isReady,
+      'phase': phase,
+      'joined_at': joinedAt.toIso8601String(),
+      'category_votes': categoryVotes.map((k, v) => MapEntry(k.toString(), v)),
+      'movie_votes': movieVotes.map((k, v) => MapEntry(k.toString(), v)),
+    };
+  }
+}
+
+class RoomModel {
+  final String id;
+  final String code; // 6 dígitos alfanuméricos
+  final String hostId;
+  final String hostUsername;
+  final int maxMembers; // 2, 5, 10, 20
+  final int matchThreshold; // 1 a 5 categorías necesarias para coincidir
+  final RoomStatus status;
+  final RoomPhase phase;
+  final List<RoomMemberModel> members;
+  final List<GenreModel> matchedCategories;
+  final MovieModel? matchedMovie;
+  final bool isRandomizerResult;
+  final DateTime createdAt;
+  final DateTime expiresAt;
+
+  const RoomModel({
+    required this.id,
+    required this.code,
+    required this.hostId,
+    required this.hostUsername,
+    this.maxMembers = 5,
+    this.matchThreshold = 2,
+    this.status = RoomStatus.waiting,
+    this.phase = RoomPhase.lobby,
+    this.members = const [],
+    this.matchedCategories = const [],
+    this.matchedMovie,
+    this.isRandomizerResult = false,
+    required this.createdAt,
+    required this.expiresAt,
+  });
+
+  bool get isFull => members.length >= maxMembers;
+
+  RoomModel copyWith({
+    String? id,
+    String? code,
+    String? hostId,
+    String? hostUsername,
+    int? maxMembers,
+    int? matchThreshold,
+    RoomStatus? status,
+    RoomPhase? phase,
+    List<RoomMemberModel>? members,
+    List<GenreModel>? matchedCategories,
+    MovieModel? matchedMovie,
+    bool? isRandomizerResult,
+    DateTime? createdAt,
+    DateTime? expiresAt,
+  }) {
+    return RoomModel(
+      id: id ?? this.id,
+      code: code ?? this.code,
+      hostId: hostId ?? this.hostId,
+      hostUsername: hostUsername ?? this.hostUsername,
+      maxMembers: maxMembers ?? this.maxMembers,
+      matchThreshold: matchThreshold ?? this.matchThreshold,
+      status: status ?? this.status,
+      phase: phase ?? this.phase,
+      members: members ?? this.members,
+      matchedCategories: matchedCategories ?? this.matchedCategories,
+      matchedMovie: matchedMovie ?? this.matchedMovie,
+      isRandomizerResult: isRandomizerResult ?? this.isRandomizerResult,
+      createdAt: createdAt ?? this.createdAt,
+      expiresAt: expiresAt ?? this.expiresAt,
+    );
+  }
+
+  factory RoomModel.fromJson(Map<String, dynamic> json) {
+    return RoomModel(
+      id: json['id'] as String? ?? '',
+      code: json['code'] as String? ?? '',
+      hostId: json['host_id'] as String? ?? '',
+      hostUsername: json['host_username'] as String? ?? 'Host',
+      maxMembers: json['max_members'] as int? ?? 5,
+      matchThreshold: json['match_threshold'] as int? ?? 2,
+      status: RoomStatus.values.firstWhere(
+        (e) => e.name == json['status'],
+        orElse: () => RoomStatus.waiting,
+      ),
+      phase: RoomPhase.values.firstWhere(
+        (e) => e.name == json['phase'],
+        orElse: () => RoomPhase.lobby,
+      ),
+      members: (json['members'] as List<dynamic>?)
+              ?.map((m) => RoomMemberModel.fromJson(m as Map<String, dynamic>))
+              .toList() ??
+          [],
+      matchedCategories: (json['matched_categories'] as List<dynamic>?)
+              ?.map((c) => GenreModel.fromJson(c as Map<String, dynamic>))
+              .toList() ??
+          [],
+      matchedMovie: json['matched_movie'] != null
+          ? MovieModel.fromJson(json['matched_movie'] as Map<String, dynamic>)
+          : null,
+      isRandomizerResult: json['is_randomizer_result'] as bool? ?? false,
+      createdAt: json['created_at'] != null
+          ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
+      expiresAt: json['expires_at'] != null
+          ? DateTime.tryParse(json['expires_at'].toString()) ??
+              DateTime.now().add(const Duration(minutes: 30))
+          : DateTime.now().add(const Duration(minutes: 30)),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'code': code,
+      'host_id': hostId,
+      'host_username': hostUsername,
+      'max_members': maxMembers,
+      'match_threshold': matchThreshold,
+      'status': status.name,
+      'phase': phase.name,
+      'members': members.map((m) => m.toJson()).toList(),
+      'matched_categories': matchedCategories.map((c) => c.toJson()).toList(),
+      'matched_movie': matchedMovie?.toJson(),
+      'is_randomizer_result': isRandomizerResult,
+      'created_at': createdAt.toIso8601String(),
+      'expires_at': expiresAt.toIso8601String(),
+    };
+  }
+}
