@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.9.0';
-  static const int changeCounter = 10;
-  static const String appVersionDisplay = 'v1.9.0 • Cambio #10';
+  static const String appVersion = '1.10.0';
+  static const int changeCounter = 11;
+  static const String appVersionDisplay = 'v1.10.0 • Cambio #11';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -61,6 +61,11 @@ class AppConstants {
       'version': '1.9.0 (Cambio #10)',
       'title': 'Compatibilidad Multi-SDK y Despliegue Render con Flutter Stable',
       'description': 'Resolución de incompatibilidad de SDK en compilación Docker (flexibilización sdk: >=3.5.0 <4.0.0), actualización a imagen base ghcr.io/cirruslabs/flutter:stable y desacoplamiento de pubspec.lock para resolución limpia de dependencias en Render.',
+    },
+    {
+      'version': '1.10.0 (Cambio #11)',
+      'title': 'Pipeline de Compilación APK Android & CI/CD Automatizado',
+      'description': 'Configuración de permisos Android (Internet, almacenamiento, galería), optimización de manifiesto con nombre SwipeFlick y pipeline CI/CD en GitHub Actions para generación automática de APK release instalable en teléfonos móviles.',
     },
   ];
 
