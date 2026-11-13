@@ -44,7 +44,11 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
     final roomService = context.read<RoomService>();
 
     if (auth.currentUser == null) {
-      await auth.loginAsGuest();
+      setState(() {
+        _isLoading = false;
+        _errorMessage = 'Debes iniciar sesión para unirte a una sala.';
+      });
+      return;
     }
 
     final success = await roomService.joinRoom(
@@ -59,7 +63,8 @@ class _JoinRoomDialogState extends State<JoinRoomDialog> {
       widget.onJoined();
     } else if (mounted) {
       setState(() {
-        _errorMessage = 'No se pudo unir a la sala. Verifica el código o la capacidad.';
+        _errorMessage = roomService.lastError ??
+            'No se pudo encontrar la sala con código "$code". Verifica que el anfitrión haya creado la sala.';
       });
     }
   }

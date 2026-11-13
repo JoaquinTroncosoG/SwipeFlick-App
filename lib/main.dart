@@ -35,6 +35,7 @@ void main() async {
   await rateLimitService.init();
 
   final roomService = RoomService();
+  roomService.attachMongoDb(mongoDbService);
 
   runApp(
     MultiProvider(

@@ -13,11 +13,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.12.0');
-      expect(AppConstants.changeCounter, 13);
-      expect(AppConstants.appVersionDisplay, contains('v1.12.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #13'));
-      expect(AppConstants.changeLog.length, 14);
+      expect(AppConstants.appVersion, '1.13.0');
+      expect(AppConstants.changeCounter, 14);
+      expect(AppConstants.appVersionDisplay, contains('v1.13.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #14'));
+      expect(AppConstants.changeLog.length, 15);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {

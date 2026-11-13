@@ -70,22 +70,28 @@ class RoomMemberModel {
 
   factory RoomMemberModel.fromJson(Map<String, dynamic> json) {
     return RoomMemberModel(
-      id: json['id'] as String? ?? '',
-      userId: json['user_id'] as String? ?? '',
+      id: json['id'] as String? ?? json['_id']?.toString() ?? '',
+      userId: json['user_id'] as String? ?? json['userId'] as String? ?? '',
       username: json['username'] as String? ?? 'Invitado',
-      avatarUrl: json['avatar_url'] as String? ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
-      isHost: json['is_host'] as bool? ?? false,
-      isReady: json['is_ready'] as bool? ?? false,
+      avatarUrl: json['avatar_url'] as String? ?? json['avatarUrl'] as String? ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      isHost: json['is_host'] as bool? ?? json['isHost'] as bool? ?? false,
+      isReady: json['is_ready'] as bool? ?? json['isReady'] as bool? ?? false,
       phase: json['phase'] as String? ?? 'lobby',
       joinedAt: json['joined_at'] != null
           ? DateTime.tryParse(json['joined_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
-      categoryVotes: (json['category_votes'] as Map<String, dynamic>?)?.map(
-            (k, v) => MapEntry(int.parse(k), v as bool),
+          : (json['joinedAt'] != null ? DateTime.tryParse(json['joinedAt'].toString()) ?? DateTime.now() : DateTime.now()),
+      categoryVotes: (json['category_votes'] as Map?)?.map(
+            (k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, v == true),
+          ) ??
+          (json['categoryVotes'] as Map?)?.map(
+            (k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, v == true),
           ) ??
           {},
-      movieVotes: (json['movie_votes'] as Map<String, dynamic>?)?.map(
-            (k, v) => MapEntry(int.parse(k), v as bool),
+      movieVotes: (json['movie_votes'] as Map?)?.map(
+            (k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, v == true),
+          ) ??
+          (json['movieVotes'] as Map?)?.map(
+            (k, v) => MapEntry(int.tryParse(k.toString()) ?? 0, v == true),
           ) ??
           {},
     );
@@ -178,12 +184,12 @@ class RoomModel {
 
   factory RoomModel.fromJson(Map<String, dynamic> json) {
     return RoomModel(
-      id: json['id'] as String? ?? '',
-      code: json['code'] as String? ?? '',
-      hostId: json['host_id'] as String? ?? '',
-      hostUsername: json['host_username'] as String? ?? 'Host',
-      maxMembers: json['max_members'] as int? ?? 5,
-      matchThreshold: json['match_threshold'] as int? ?? 2,
+      id: json['id'] as String? ?? json['_id']?.toString() ?? '',
+      code: (json['code'] as String? ?? '').trim().toUpperCase(),
+      hostId: json['host_id'] as String? ?? json['hostId'] as String? ?? '',
+      hostUsername: json['host_username'] as String? ?? json['hostUsername'] as String? ?? 'Host',
+      maxMembers: json['max_members'] as int? ?? json['maxMembers'] as int? ?? 5,
+      matchThreshold: json['match_threshold'] as int? ?? json['matchThreshold'] as int? ?? 2,
       status: RoomStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => RoomStatus.waiting,
@@ -193,24 +199,29 @@ class RoomModel {
         orElse: () => RoomPhase.lobby,
       ),
       members: (json['members'] as List<dynamic>?)
-              ?.map((m) => RoomMemberModel.fromJson(m as Map<String, dynamic>))
+              ?.map((m) => RoomMemberModel.fromJson(Map<String, dynamic>.from(m as Map)))
               .toList() ??
           [],
       matchedCategories: (json['matched_categories'] as List<dynamic>?)
-              ?.map((c) => GenreModel.fromJson(c as Map<String, dynamic>))
+              ?.map((c) => GenreModel.fromJson(Map<String, dynamic>.from(c as Map)))
+              .toList() ??
+          (json['matchedCategories'] as List<dynamic>?)
+              ?.map((c) => GenreModel.fromJson(Map<String, dynamic>.from(c as Map)))
               .toList() ??
           [],
       matchedMovie: json['matched_movie'] != null
-          ? MovieModel.fromJson(json['matched_movie'] as Map<String, dynamic>)
-          : null,
-      isRandomizerResult: json['is_randomizer_result'] as bool? ?? false,
+          ? MovieModel.fromJson(Map<String, dynamic>.from(json['matched_movie'] as Map))
+          : (json['matchedMovie'] != null
+              ? MovieModel.fromJson(Map<String, dynamic>.from(json['matchedMovie'] as Map))
+              : null),
+      isRandomizerResult: json['is_randomizer_result'] as bool? ?? json['isRandomizerResult'] as bool? ?? false,
       createdAt: json['created_at'] != null
           ? DateTime.tryParse(json['created_at'].toString()) ?? DateTime.now()
-          : DateTime.now(),
+          : (json['createdAt'] != null ? DateTime.tryParse(json['createdAt'].toString()) ?? DateTime.now() : DateTime.now()),
       expiresAt: json['expires_at'] != null
           ? DateTime.tryParse(json['expires_at'].toString()) ??
               DateTime.now().add(const Duration(minutes: 30))
-          : DateTime.now().add(const Duration(minutes: 30)),
+          : (json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString()) ?? DateTime.now().add(const Duration(minutes: 30)) : DateTime.now().add(const Duration(minutes: 30))),
     );
   }
 

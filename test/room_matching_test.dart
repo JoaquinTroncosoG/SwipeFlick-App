@@ -122,5 +122,55 @@ void main() {
       final comedyMovies = MockMoviesData.sampleMovies.where((m) => m.genreIds.contains(35)).toList();
       expect(comedyMovies.contains(insideOut), true);
     });
+
+    test('RoomModel serialización y deserialización BSON es simétrica y segura', () {
+      final host = UserModel.createDemo(name: 'Host Test');
+      final room = RoomModel(
+        id: 'room_123',
+        code: 'SFTEST',
+        hostId: host.id,
+        hostUsername: host.username,
+        maxMembers: 5,
+        matchThreshold: 2,
+        status: RoomStatus.waiting,
+        phase: RoomPhase.lobby,
+        members: [
+          RoomMemberModel(
+            id: 'mem_1',
+            userId: host.id,
+            username: host.username,
+            avatarUrl: host.avatarUrl,
+            isHost: true,
+            isReady: true,
+            phase: 'lobby',
+            joinedAt: DateTime.now(),
+            categoryVotes: {28: true, 35: false},
+            movieVotes: {1022789: true},
+          ),
+        ],
+        createdAt: DateTime.now(),
+        expiresAt: DateTime.now().add(const Duration(minutes: 30)),
+      );
+
+      final json = room.toJson();
+      expect(json['code'], 'SFTEST');
+      expect((json['members'] as List).length, 1);
+
+      // Deserialización simulando datos BSON de MongoDB
+      final recreated = RoomModel.fromJson(Map<String, dynamic>.from(json));
+      expect(recreated.code, 'SFTEST');
+      expect(recreated.members.first.categoryVotes[28], true);
+      expect(recreated.members.first.movieVotes[1022789], true);
+    });
+
+    test('RoomService rechaza unirse con código inexistente sin inventar anfitrión simulado', () async {
+      final roomService = RoomService();
+      final user = UserModel.createDemo(name: 'Usuario Real');
+
+      final result = await roomService.joinRoom(code: 'CODIGO_INEXISTENTE_999', user: user);
+      expect(result, false);
+      expect(roomService.currentRoom, isNull);
+      expect(roomService.lastError, contains('no encontrada'));
+    });
   });
 }

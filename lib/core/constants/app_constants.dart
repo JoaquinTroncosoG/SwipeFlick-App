@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.12.0';
-  static const int changeCounter = 13;
-  static const String appVersionDisplay = 'v1.12.0 • Cambio #13';
+  static const String appVersion = '1.13.0';
+  static const int changeCounter = 14;
+  static const String appVersionDisplay = 'v1.13.0 • Cambio #14';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -76,6 +76,11 @@ class AppConstants {
       'version': '1.12.0 (Cambio #13)',
       'title': 'Corrección Remitente Verificado Brevo & Desbloqueo de Destinatarios',
       'description': 'Configuración de remitente predeterminado con cuenta verificada en Brevo (joaquin1troncoso@gmail.com) reemplazando noreply no autenticado; desbloqueo de contactos suprimidos y entrega garantizada de correos OTP en bandejas de entrada Gmail.',
+    },
+    {
+      'version': '1.13.0 (Cambio #14)',
+      'title': 'Salas Grupales Reales en MongoDB Atlas & Sincronización Multidispositivo',
+      'description': 'Creación y persistencia de salas reales en la colección "rooms" de MongoDB Atlas; sincronización en tiempo real por polling cada 2s para lobbies y votaciones simultáneas entre celulares; eliminación de usuarios mock/simulados y mensajes específicos de validación de código.',
     },
   ];
 

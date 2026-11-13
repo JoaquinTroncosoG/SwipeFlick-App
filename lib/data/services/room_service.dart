@@ -7,14 +7,24 @@ import '../models/movie_model.dart';
 import '../models/room_model.dart';
 import '../models/user_model.dart';
 import '../mock/mock_movies_data.dart';
+import 'mongodb_service.dart';
 
 class RoomService extends ChangeNotifier {
   RoomModel? _currentRoom;
   final Uuid _uuid = const Uuid();
   Timer? _expirationTimer;
+  Timer? _syncTimer;
+  MongoDbService? _mongoService;
+  String? _lastError;
 
   RoomModel? get currentRoom => _currentRoom;
   bool get isInRoom => _currentRoom != null;
+  String? get lastError => _lastError;
+
+  /// Conecta el servicio con MongoDB Atlas para persistencia y sincronización en tiempo real
+  void attachMongoDb(MongoDbService mongo) {
+    _mongoService = mongo;
+  }
 
   /// Generar código alfanumérico único de 6 caracteres (ej: SF89K2)
   String _generateRoomCode() {
@@ -25,7 +35,53 @@ class RoomService extends ChangeNotifier {
     );
   }
 
-  /// Crear una nueva sala
+  /// Inicia el polling de sincronización en tiempo real desde MongoDB Atlas
+  void _startSyncTimer() {
+    _syncTimer?.cancel();
+    _syncTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+      await _syncFromDatabase();
+    });
+  }
+
+  /// Sincroniza el estado más reciente de la sala desde MongoDB Atlas
+  Future<void> _syncFromDatabase() async {
+    if (_currentRoom == null || _mongoService == null) return;
+    try {
+      final remoteRoom = await _mongoService!.getRoomByCode(_currentRoom!.code);
+      if (remoteRoom == null) return;
+
+      bool hasChanges = false;
+      if (remoteRoom.members.length != _currentRoom!.members.length ||
+          remoteRoom.phase != _currentRoom!.phase ||
+          remoteRoom.status != _currentRoom!.status ||
+          remoteRoom.matchedCategories.length != _currentRoom!.matchedCategories.length ||
+          remoteRoom.matchedMovie?.id != _currentRoom!.matchedMovie?.id) {
+        hasChanges = true;
+      } else {
+        // Verificar si algún participante actualizó votos
+        for (final rm in remoteRoom.members) {
+          final lm = _currentRoom!.members.firstWhere(
+            (m) => m.userId == rm.userId,
+            orElse: () => rm,
+          );
+          if (rm.categoryVotes.length != lm.categoryVotes.length ||
+              rm.movieVotes.length != lm.movieVotes.length) {
+            hasChanges = true;
+            break;
+          }
+        }
+      }
+
+      if (hasChanges) {
+        _currentRoom = remoteRoom;
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('[RoomService] Error al sincronizar sala desde Atlas: $e');
+    }
+  }
+
+  /// Crear una nueva sala en MongoDB Atlas
   Future<RoomModel> createRoom({
     required UserModel host,
     int maxMembers = 5,
@@ -59,22 +115,95 @@ class RoomService extends ChangeNotifier {
       expiresAt: now.add(const Duration(minutes: 30)),
     );
 
+    // Guardar en MongoDB Atlas
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
+    _startSyncTimer();
     notifyListeners();
     return _currentRoom!;
   }
 
-  /// Unirse a sala por código
+  /// Unirse a sala real por código consultando MongoDB Atlas
   Future<bool> joinRoom({
     required String code,
     required UserModel user,
   }) async {
+    _lastError = null;
     final cleanCode = code.trim().toUpperCase();
 
-    // Si la sala activa tiene ese código
+    if (cleanCode.isEmpty) {
+      _lastError = 'El código no puede estar vacío.';
+      return false;
+    }
+
+    // 1. Si hay servicio de MongoDB Atlas conectado, consultar la sala real en la nube
+    if (_mongoService != null) {
+      await _mongoService!.ensureConnected();
+      final remoteRoom = await _mongoService!.getRoomByCode(cleanCode);
+
+      if (remoteRoom == null) {
+        _lastError = 'No se encontró ninguna sala con el código "$cleanCode". Verifica que el host haya creado la sala.';
+        notifyListeners();
+        return false;
+      }
+
+      if (remoteRoom.isFull) {
+        final alreadyIn = remoteRoom.members.any((m) => m.userId == user.id);
+        if (!alreadyIn) {
+          _lastError = 'La sala "$cleanCode" ya alcanzó su capacidad máxima (${remoteRoom.maxMembers} participantes).';
+          notifyListeners();
+          return false;
+        }
+      }
+
+      // Si el usuario ya estaba en la sala, simplemente reanudar
+      final existingIndex = remoteRoom.members.indexWhere((m) => m.userId == user.id);
+      if (existingIndex >= 0) {
+        _currentRoom = remoteRoom;
+        _startSyncTimer();
+        notifyListeners();
+        return true;
+      }
+
+      // Añadir al nuevo miembro a la sala real
+      final newMember = RoomMemberModel(
+        id: _uuid.v4(),
+        userId: user.id,
+        username: user.username,
+        avatarUrl: user.avatarUrl,
+        isHost: false,
+        isReady: true,
+        phase: remoteRoom.phase.name,
+        joinedAt: DateTime.now(),
+      );
+
+      final updatedRoom = remoteRoom.copyWith(
+        members: [...remoteRoom.members, newMember],
+      );
+
+      final saved = await _mongoService!.saveRoom(updatedRoom);
+      if (!saved) {
+        _lastError = 'Error de conexión al unirse a la sala en la nube.';
+        notifyListeners();
+        return false;
+      }
+
+      _currentRoom = updatedRoom;
+      _startSyncTimer();
+      notifyListeners();
+      return true;
+    }
+
+    // 2. Modo local o pruebas unitarias (sin MongoDB activo)
     if (_currentRoom != null && _currentRoom!.code == cleanCode) {
       final alreadyMember = _currentRoom!.members.any((m) => m.userId == user.id);
       if (alreadyMember) return true;
-      if (_currentRoom!.isFull) return false;
+      if (_currentRoom!.isFull) {
+        _lastError = 'La sala está llena.';
+        return false;
+      }
       final newMember = RoomMemberModel(
         id: _uuid.v4(),
         userId: user.id,
@@ -92,128 +221,34 @@ class RoomService extends ChangeNotifier {
       return true;
     }
 
-    // Si no coincide o no existe sala activa local, crear/simular la sala para unirse
-    final now = DateTime.now();
-    if (_currentRoom == null || _currentRoom!.code != cleanCode) {
-      // Simular anfitrión existente para unirse
-      final hostMember = RoomMemberModel(
-        id: _uuid.v4(),
-        userId: 'host_mateo',
-        username: 'Mateo (Host)',
-        avatarUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150',
-        isHost: true,
-        isReady: true,
-        phase: 'lobby',
-        joinedAt: now.subtract(const Duration(minutes: 2)),
-      );
-
-      final newMember = RoomMemberModel(
-        id: _uuid.v4(),
-        userId: user.id,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        isHost: false,
-        isReady: true,
-        phase: 'lobby',
-        joinedAt: now,
-      );
-
-      _currentRoom = RoomModel(
-        id: _uuid.v4(),
-        code: cleanCode,
-        hostId: hostMember.userId,
-        hostUsername: hostMember.username,
-        maxMembers: 5,
-        matchThreshold: 2,
-        status: RoomStatus.waiting,
-        phase: RoomPhase.lobby,
-        members: [hostMember, newMember],
-        createdAt: now,
-        expiresAt: now.add(const Duration(minutes: 30)),
-      );
-
-      notifyListeners();
-      return true;
-    }
-
-    // Si la sala ya existe y no está llena, agregar al usuario
-    if (_currentRoom!.isFull) {
-      return false;
-    }
-
-    final alreadyMember = _currentRoom!.members.any((m) => m.userId == user.id);
-    if (!alreadyMember) {
-      final newMember = RoomMemberModel(
-        id: _uuid.v4(),
-        userId: user.id,
-        username: user.username,
-        avatarUrl: user.avatarUrl,
-        isHost: false,
-        isReady: true,
-        phase: _currentRoom!.phase.name,
-        joinedAt: now,
-      );
-
-      _currentRoom = _currentRoom!.copyWith(
-        members: [..._currentRoom!.members, newMember],
-      );
-      notifyListeners();
-    }
-
-    return true;
-  }
-
-  /// Añadir un amigo simulado a la sala (Ideal para probar la experiencia multiplayer)
-  void addSimulatedFriend([String? name]) {
-    if (_currentRoom == null || _currentRoom!.isFull) return;
-
-    final names = ['Lucía', 'Tomás', 'Valeria', 'Andrés', 'Sofía'];
-    final avatars = [
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150',
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150',
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
-      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=150',
-    ];
-
-    final rnd = Random();
-    final friendName = name ?? names[rnd.nextInt(names.length)];
-    final friendAvatar = avatars[rnd.nextInt(avatars.length)];
-
-    final friend = RoomMemberModel(
-      id: _uuid.v4(),
-      userId: 'sim_${_uuid.v4().substring(0, 6)}',
-      username: friendName,
-      avatarUrl: friendAvatar,
-      isHost: false,
-      isReady: true,
-      phase: _currentRoom!.phase.name,
-      joinedAt: DateTime.now(),
-    );
-
-    _currentRoom = _currentRoom!.copyWith(
-      members: [..._currentRoom!.members, friend],
-    );
+    _lastError = 'Sala "$cleanCode" no encontrada.';
     notifyListeners();
+    return false;
   }
 
   /// Anfitrión inicia la Fase 1: Categorías
-  void startPhase1Categories() {
+  Future<void> startPhase1Categories() async {
     if (_currentRoom == null) return;
 
     _currentRoom = _currentRoom!.copyWith(
       status: RoomStatus.categories,
       phase: RoomPhase.categories,
     );
+
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
     notifyListeners();
   }
 
-  /// Registrar voto de categoría de un usuario
-  void castCategoryVote({
+  /// Registrar voto real de categoría de un usuario
+  Future<void> castCategoryVote({
     required String userId,
     required int genreId,
     required bool approved,
     required List<GenreModel> allAvailableGenres,
-  }) {
+  }) async {
     if (_currentRoom == null) return;
 
     // Actualizar voto del usuario
@@ -228,33 +263,15 @@ class RoomService extends ChangeNotifier {
 
     _currentRoom = _currentRoom!.copyWith(members: updatedMembers);
 
-    // Simular votos de los otros participantes si no han votado
-    _simulateOtherMembersCategoryVotes(userId, genreId, allAvailableGenres);
-
-    // Verificar si se alcanzó el threshold de coincidencia
+    // Evaluar si se alcanzó la meta de categorías entre los miembros conectados
     _checkCategoryMatching(allAvailableGenres);
+
+    // Guardar en Atlas para que el resto de participantes lo reciba
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
     notifyListeners();
-  }
-
-  void _simulateOtherMembersCategoryVotes(String currentUserId, int genreId, List<GenreModel> allGenres) {
-    if (_currentRoom == null) return;
-    final rnd = Random();
-
-    final updatedMembers = _currentRoom!.members.map((member) {
-      // Cualquier otro participante en la sala que no haya votado aún
-      if (member.userId != currentUserId) {
-        if (!member.categoryVotes.containsKey(genreId)) {
-          final updatedVotes = Map<int, bool>.from(member.categoryVotes);
-          // Alta probabilidad de coincidencia en géneros principales para avanzar fluidamente
-          final isPopular = [28, 35, 27, 878, 18, 12, 16].contains(genreId);
-          updatedVotes[genreId] = isPopular ? (rnd.nextDouble() < 0.85) : (rnd.nextDouble() < 0.5);
-          return member.copyWith(categoryVotes: updatedVotes);
-        }
-      }
-      return member;
-    }).toList();
-
-    _currentRoom = _currentRoom!.copyWith(members: updatedMembers);
   }
 
   /// Evaluar coincidencia de categorías entre todos los miembros
@@ -264,7 +281,7 @@ class RoomService extends ChangeNotifier {
     final members = _currentRoom!.members;
     if (members.length < 2) return;
 
-    // Encontrar categorías aprobadas por TODOS los miembros
+    // Encontrar categorías aprobadas por TODOS los miembros reales
     List<GenreModel> matched = [];
     for (final genre in allGenres) {
       final allApproved = members.every((m) => m.categoryVotes[genre.id] == true);
@@ -284,7 +301,7 @@ class RoomService extends ChangeNotifier {
   }
 
   /// Forzar avance a celebración de categorías (en caso de agotar baraja)
-  void forceAdvanceToMoviesPhase(List<GenreModel> fallbackCategories) {
+  Future<void> forceAdvanceToMoviesPhase(List<GenreModel> fallbackCategories) async {
     if (_currentRoom == null) return;
 
     final cats = _currentRoom!.matchedCategories.isNotEmpty
@@ -296,27 +313,37 @@ class RoomService extends ChangeNotifier {
       status: RoomStatus.categories,
       phase: RoomPhase.categoryMatch,
     );
+
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
     notifyListeners();
   }
 
   /// Avanzar de la celebración de categorías a la Fase 2: Películas
-  void advanceToMoviesPhase() {
+  Future<void> advanceToMoviesPhase() async {
     if (_currentRoom == null) return;
 
     _currentRoom = _currentRoom!.copyWith(
       status: RoomStatus.movies,
       phase: RoomPhase.movies,
     );
+
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
     notifyListeners();
   }
 
-  /// Registrar voto de película de un usuario en Fase 2
-  void castMovieVote({
+  /// Registrar voto real de película de un usuario en Fase 2
+  Future<void> castMovieVote({
     required String userId,
     required MovieModel movie,
     required bool approved,
     required List<MovieModel> roomDeck,
-  }) {
+  }) async {
     if (_currentRoom == null) return;
 
     final updatedMembers = _currentRoom!.members.map((member) {
@@ -330,31 +357,15 @@ class RoomService extends ChangeNotifier {
 
     _currentRoom = _currentRoom!.copyWith(members: updatedMembers);
 
-    // Simular respuesta de otros miembros para esta película
-    _simulateOtherMembersMovieVote(userId, movie.id);
-
-    // Verificar si TODOS aprobaron esta película -> MATCH!
+    // Verificar si TODOS los miembros aprobaron esta película -> MATCH!
     _checkMovieConsensus(movie, roomDeck);
+
+    // Guardar en Atlas
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
     notifyListeners();
-  }
-
-  void _simulateOtherMembersMovieVote(String currentUserId, int movieId) {
-    if (_currentRoom == null) return;
-    final rnd = Random();
-
-    final updatedMembers = _currentRoom!.members.map((member) {
-      if (member.userId != currentUserId) {
-        if (!member.movieVotes.containsKey(movieId)) {
-          final updatedVotes = Map<int, bool>.from(member.movieVotes);
-          // Alta probabilidad de coincidencia para hacer la experiencia emocionante y rápida
-          updatedVotes[movieId] = rnd.nextDouble() < 0.70;
-          return member.copyWith(movieVotes: updatedVotes);
-        }
-      }
-      return member;
-    }).toList();
-
-    _currentRoom = _currentRoom!.copyWith(members: updatedMembers);
   }
 
   /// Verificar si todos los miembros aprobaron la misma película
@@ -386,7 +397,7 @@ class RoomService extends ChangeNotifier {
   }
 
   /// Fallback Randomizer: Selecciona al azar una película de las categorías coincidentes
-  void triggerRandomizerFallback(List<MovieModel> candidates) {
+  Future<void> triggerRandomizerFallback(List<MovieModel> candidates) async {
     if (_currentRoom == null) return;
 
     final pool = candidates.isNotEmpty ? candidates : MockMoviesData.sampleMovies;
@@ -399,13 +410,29 @@ class RoomService extends ChangeNotifier {
       status: RoomStatus.completed,
       phase: RoomPhase.result,
     );
+
+    if (_mongoService != null) {
+      await _mongoService!.saveRoom(_currentRoom!);
+    }
+
     notifyListeners();
   }
 
   /// Salir o destruir la sala
   void leaveRoom() {
+    _syncTimer?.cancel();
+    _syncTimer = null;
     _expirationTimer?.cancel();
+    _expirationTimer = null;
     _currentRoom = null;
+    _lastError = null;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _syncTimer?.cancel();
+    _expirationTimer?.cancel();
+    super.dispose();
   }
 }

@@ -283,21 +283,33 @@ class RoomLobbyScreen extends StatelessWidget {
                 ),
               ),
 
-              // Botón para simular amigo (Test fácil de multiplayer)
-              if (!room.isFull) ...[
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.person_add_alt_1_rounded, size: 18, color: AppColors.accent),
-                  label: const Text('Simular amigo que se une (Para pruebas)'),
-                  style: OutlinedButton.styleFrom(
-                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
-                    minimumSize: const Size(double.infinity, 44),
-                  ),
-                  onPressed: () {
-                    roomService.addSimulatedFriend();
-                  },
+              // Estado de conexión en tiempo real
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.surfaceBorder),
                 ),
-                const SizedBox(height: 14),
-              ],
+                child: Row(
+                  children: [
+                    const Icon(Icons.sync_rounded, size: 18, color: AppColors.accent),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        room.members.length < 2
+                            ? 'Esperando a que tus amigos ingresen el código en sus teléfonos...'
+                            : '¡${room.members.length} participantes conectados en tiempo real!',
+                        style: AppTextStyles.caption.copyWith(
+                          color: room.members.length < 2 ? AppColors.textSecondary : AppColors.success,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 14),
 
               // CTA Iniciar Juego
               if (isHost) ...[
@@ -306,11 +318,13 @@ class RoomLobbyScreen extends StatelessWidget {
                   icon: Icons.play_arrow_rounded,
                   width: double.infinity,
                   onPressed: room.members.length >= 2
-                      ? () {
-                          roomService.startPhase1Categories();
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(builder: (_) => const RoomPhase1CategoriesScreen()),
-                          );
+                      ? () async {
+                          await roomService.startPhase1Categories();
+                          if (context.mounted) {
+                            Navigator.of(context).pushReplacement(
+                              MaterialPageRoute(builder: (_) => const RoomPhase1CategoriesScreen()),
+                            );
+                          }
                         }
                       : null,
                 ),

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/room_model.dart';
 import '../../core/utils/security_helper.dart';
 
 enum MongoDbStatus {
@@ -435,7 +436,90 @@ class MongoDbService extends ChangeNotifier {
   // OPERACIONES DE SALAS (Colección: rooms)
   // ==========================================
 
-  /// Sincronizar o guardar estado de una sala
+  /// Guarda o actualiza una sala grupal completa en MongoDB Atlas
+  Future<bool> saveRoom(RoomModel room) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final data = room.toJson();
+      await collection.updateOne(
+        where.eq('code', room.code),
+        modify
+            .set('id', room.id)
+            .set('code', room.code)
+            .set('host_id', room.hostId)
+            .set('host_username', room.hostUsername)
+            .set('max_members', room.maxMembers)
+            .set('match_threshold', room.matchThreshold)
+            .set('status', room.status.name)
+            .set('phase', room.phase.name)
+            .set('members', data['members'])
+            .set('matched_categories', data['matched_categories'])
+            .set('matched_movie', data['matched_movie'])
+            .set('is_randomizer_result', room.isRandomizerResult)
+            .set('created_at', room.createdAt.toIso8601String())
+            .set('expires_at', room.expiresAt.toIso8601String())
+            .set('updated_at', DateTime.now().toIso8601String()),
+        upsert: true,
+      );
+      debugPrint('[MongoDB] Sala ${room.code} sincronizada exitosamente en Atlas.');
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al guardar sala en Atlas: $e');
+      return false;
+    }
+  }
+
+  /// Obtiene una sala grupal por su código de 6 caracteres desde MongoDB Atlas
+  Future<RoomModel?> getRoomByCode(String code) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return null;
+    }
+    final cleanCode = code.trim().toUpperCase();
+    if (cleanCode.isEmpty) return null;
+
+    try {
+      final collection = _db!.collection('rooms');
+      final doc = await collection.findOne(where.eq('code', cleanCode));
+      if (doc == null) return null;
+
+      // Verificar si expiró
+      final expiresStr = doc['expires_at'] as String?;
+      if (expiresStr != null) {
+        final exp = DateTime.tryParse(expiresStr);
+        if (exp != null && DateTime.now().isAfter(exp)) {
+          debugPrint('[MongoDB] La sala $cleanCode expiró.');
+          await collection.deleteOne(where.eq('code', cleanCode));
+          return null;
+        }
+      }
+
+      return RoomModel.fromJson(Map<String, dynamic>.from(doc));
+    } catch (e) {
+      debugPrint('[MongoDB] Error al buscar sala por código en Atlas: $e');
+      return null;
+    }
+  }
+
+  /// Elimina una sala grupal de MongoDB Atlas al cerrarse o terminar
+  Future<bool> deleteRoom(String code) async {
+    if (!isConnected || _db == null) return false;
+    final cleanCode = code.trim().toUpperCase();
+    try {
+      final collection = _db!.collection('rooms');
+      final res = await collection.deleteOne(where.eq('code', cleanCode));
+      return res.isSuccess;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al eliminar sala: $e');
+      return false;
+    }
+  }
+
+  /// Sincronizar o guardar estado básico de una sala (retrocompatibilidad)
   Future<bool> syncRoom(Map<String, dynamic> roomData) async {
     if (!isConnected || _db == null) return false;
     try {
