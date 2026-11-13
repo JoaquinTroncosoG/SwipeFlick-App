@@ -59,16 +59,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.10.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.10.0.apk \
-            --title "SwipeFlick v1.10.0 (APK Android)" \
-            --notes "### 📱 SwipeFlick - Instalador Android (APK)
-
-Descarga el archivo APK directamente en tu teléfono móvil Android para instalar y probar la aplicación.
-
-- **Archivo**: \`SwipeFlick-v1.10.0.apk\`
-- **Versión**: v1.10.0 (Cambio #11)
-- **Compatibilidad**: Android 5.0+ (Lollipop a Android 15)
-- **Arquitectura**: Universal (ARM64, ARMv7, x86_64)
-- **Base de Datos**: MongoDB Atlas integrado
-- **Notificaciones**: Brevo OTP Email" \
-            --clobber
+          gh release create v1.10.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.10.0.apk --title "SwipeFlick v1.10.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.10.0.apk para instalar y probar en tu celular Android." --clobber
