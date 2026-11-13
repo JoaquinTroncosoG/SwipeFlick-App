@@ -46,34 +46,48 @@ class _RegisterScreenState extends State<RegisterScreen> {
     // Generar código OTP de 6 dígitos
     final otpCode = (100000 + Random().nextInt(900000)).toString();
 
-    // Guardar cuenta pendiente en MongoDB Atlas con auto-expiración de 30 minutos (REQUERIMIENTO 2)
+    // Guardar cuenta pendiente en MongoDB Atlas con auto-expiración de 30 minutos
     final mongo = context.read<MongoDbService>();
-    if (mongo.isConnected) {
-      mongo.saveUser(
-        id: 'usr_${email.hashCode.abs()}',
-        username: username,
-        email: email,
-        passwordHash: password,
-        isVerified: false,
-        otpCode: otpCode,
-      );
-    }
+    final brevo = context.read<BrevoEmailService>();
+    final messenger = ScaffoldMessenger.of(context);
+
+    await mongo.saveUser(
+      id: 'usr_${email.hashCode.abs()}',
+      username: username,
+      email: email,
+      passwordHash: password,
+      isVerified: false,
+      otpCode: otpCode,
+    );
 
     // Enviar código por Brevo Email
-    final brevo = context.read<BrevoEmailService>();
-    brevo.sendVerificationCodeEmail(
+    final sent = await brevo.sendVerificationCodeEmail(
       recipientEmail: email,
       recipientName: username,
       code: otpCode,
     );
 
-    // Mostrar modal interactivo para ingresar el código de verificación
-    _showOtpVerificationDialog(
-      username: username,
-      email: email,
-      password: password,
-      initialOtp: otpCode,
-    );
+    if (!sent && mounted) {
+      messenger.showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text(
+            'Aviso Brevo: ${brevo.lastError ?? "No se pudo enviar el correo de verificación. Revisa la configuración de Brevo."}',
+          ),
+          duration: const Duration(seconds: 5),
+        ),
+      );
+    }
+
+    // Mostrar modal para ingresar el código de verificación
+    if (mounted) {
+      _showOtpVerificationDialog(
+        username: username,
+        email: email,
+        password: password,
+        initialOtp: otpCode,
+      );
+    }
   }
 
   void _showOtpVerificationDialog({
@@ -152,36 +166,28 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Helper visual para pruebas / simulación
-                  InkWell(
-                    borderRadius: BorderRadius.circular(8),
-                    onTap: () {
-                      setDialogState(() {
-                        otpController.text = currentOtp;
-                      });
-                    },
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      decoration: BoxDecoration(
-                        color: AppColors.accentSubtle,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.lightbulb_outline_rounded, color: AppColors.accent, size: 16),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Código: $currentOtp (Toca para autocompletar)',
+                  // Indicación informativa sin autocompletado
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.surfaceBorder),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.mark_email_unread_rounded, color: AppColors.accent, size: 18),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Ingresa el código de 6 dígitos que enviamos a tu correo electrónico.',
                             style: AppTextStyles.caption.copyWith(
-                              color: AppColors.accent,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 11,
+                              color: AppColors.textSecondary,
+                              height: 1.3,
                             ),
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -192,25 +198,40 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       'Reenviar Código',
                       style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       final newOtp = (100000 + Random().nextInt(900000)).toString();
                       setDialogState(() {
                         currentOtp = newOtp;
                         otpController.clear();
                       });
                       final brevo = context.read<BrevoEmailService>();
-                      brevo.sendVerificationCodeEmail(
+                      final mongo = context.read<MongoDbService>();
+                      await mongo.saveUser(
+                        id: 'usr_${email.hashCode.abs()}',
+                        username: username,
+                        email: email,
+                        passwordHash: password,
+                        isVerified: false,
+                        otpCode: newOtp,
+                      );
+                      final sent = await brevo.sendVerificationCodeEmail(
                         recipientEmail: email,
                         recipientName: username,
                         code: newOtp,
                       );
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: AppColors.surfaceElevated,
-                          content: Text('Nuevo código de verificación enviado a $email'),
-                          duration: const Duration(seconds: 2),
-                        ),
-                      );
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            backgroundColor: sent ? AppColors.surfaceElevated : AppColors.error,
+                            content: Text(
+                              sent
+                                  ? 'Nuevo código de verificación enviado a $email'
+                                  : 'Aviso Brevo: ${brevo.lastError ?? "Error al enviar correo"}',
+                            ),
+                            duration: const Duration(seconds: 4),
+                          ),
+                        );
+                      }
                     },
                   ),
                 ],

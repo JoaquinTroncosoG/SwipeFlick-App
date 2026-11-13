@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.10.0';
-  static const int changeCounter = 11;
-  static const String appVersionDisplay = 'v1.10.0 • Cambio #11';
+  static const String appVersion = '1.11.0';
+  static const int changeCounter = 12;
+  static const String appVersionDisplay = 'v1.11.0 • Cambio #12';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -66,6 +66,11 @@ class AppConstants {
       'version': '1.10.0 (Cambio #11)',
       'title': 'Pipeline de Compilación APK Android & CI/CD Automatizado',
       'description': 'Configuración de permisos Android (Internet, almacenamiento, galería), optimización de manifiesto con nombre SwipeFlick y pipeline CI/CD en GitHub Actions para generación automática de APK release instalable en teléfonos móviles.',
+    },
+    {
+      'version': '1.11.0 (Cambio #12)',
+      'title': 'Health Check UptimeRobot, Flujo Estricto de Autenticación & Conexión Nativa Atlas/Brevo',
+      'description': 'Endpoint /health para monitor UptimeRobot 24/7 en Render; inicio estricto en Login sin cuentas demo/invitadas precargadas; remoción de autocompletado en código de verificación OTP; inyección de credenciales Atlas/Brevo en APK e informe de autorizaciones IP.',
     },
   ];
 

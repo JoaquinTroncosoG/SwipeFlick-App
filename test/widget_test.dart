@@ -37,10 +37,8 @@ void main() {
 
     await tester.pump();
 
-    // Comprobar que SwipeFlick se renderiza
-    expect(find.text(AppConstants.appName), findsWidgets);
-    expect(find.text('Inicio'), findsOneWidget);
-    expect(find.text('Deslizar'), findsWidgets);
-    expect(find.text('Salas'), findsOneWidget);
+    // Sin usuario activo: Debe iniciar directamente en la pantalla de Login
+    expect(find.text('Ingresar'), findsOneWidget);
+    expect(find.text('¿No tienes una cuenta?'), findsOneWidget);
   });
 }

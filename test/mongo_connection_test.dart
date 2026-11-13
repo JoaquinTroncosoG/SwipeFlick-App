@@ -6,7 +6,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('Probar inicializacion y operaciones con MongoDB Atlas o modo desacoplado', () async {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues({'mongodb_uri': ''});
     final mongo = MongoDbService();
     await mongo.init();
 

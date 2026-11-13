@@ -13,11 +13,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.10.0');
-      expect(AppConstants.changeCounter, 11);
-      expect(AppConstants.appVersionDisplay, contains('v1.10.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #11'));
-      expect(AppConstants.changeLog.length, 12);
+      expect(AppConstants.appVersion, '1.11.0');
+      expect(AppConstants.changeCounter, 12);
+      expect(AppConstants.appVersionDisplay, contains('v1.11.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #12'));
+      expect(AppConstants.changeLog.length, 13);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -107,8 +107,9 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final auth = AuthService();
       await auth.init();
+      await auth.signIn(email: 'alex@swipeflick.app', password: 'password123');
 
-      // Contraseña por defecto es password123
+      // Contraseña es password123
       expect(auth.verifyCurrentPassword('password123'), true);
       expect(auth.verifyCurrentPassword('incorrecta'), false);
 
@@ -164,7 +165,9 @@ void main() {
     });
 
     test('BrevoEmailService envía código de verificación OTP', () async {
+      SharedPreferences.setMockInitialValues({'brevo_api_key': ''});
       final brevo = BrevoEmailService();
+      await brevo.init();
       final sent = await brevo.sendVerificationCodeEmail(
         recipientEmail: 'cinefilo@swipeflick.app',
         recipientName: 'Alex',
@@ -257,7 +260,9 @@ void main() {
     });
 
     test('BrevoEmailService envía código de recuperación de contraseña', () async {
+      SharedPreferences.setMockInitialValues({'brevo_api_key': ''});
       final brevo = BrevoEmailService();
+      await brevo.init();
       final sent = await brevo.sendPasswordResetCodeEmail(
         recipientEmail: 'recuperar@swipeflick.app',
         recipientName: 'Alex Cinefilo',

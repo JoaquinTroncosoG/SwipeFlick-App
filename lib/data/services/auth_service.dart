@@ -7,7 +7,7 @@ import '../models/user_model.dart';
 class AuthService extends ChangeNotifier {
   static const String _userPrefKey = 'swipeflick_current_user';
   UserModel? _currentUser;
-  String _currentPassword = SecurityHelper.hashPassword('password123', userSalt: 'alex@swipeflick.app');
+  String _currentPassword = '';
   bool _isLoading = false;
 
   UserModel? get currentUser => _currentUser;
@@ -17,6 +17,7 @@ class AuthService extends ChangeNotifier {
 
   /// Verifica si la contraseña coincide usando comparación segura en tiempo constante contra el hash
   bool verifyCurrentPassword(String candidate) {
+    if (_currentPassword.isEmpty) return false;
     final salt = _currentUser?.email ?? 'alex@swipeflick.app';
     if (_currentPassword.length == 64) {
       return SecurityHelper.verifyPassword(
@@ -49,9 +50,9 @@ class AuthService extends ChangeNotifier {
       } catch (_) {
         _currentUser = null;
       }
+    } else {
+      _currentUser = null;
     }
-    // Si no hay usuario, iniciamos con un perfil invitado por defecto para cero fricción
-    _currentUser ??= UserModel.createDemo(name: 'Alex Cinéfilo', email: 'alex@swipeflick.app');
     notifyListeners();
   }
 
@@ -171,10 +172,10 @@ class AuthService extends ChangeNotifier {
 
   Future<void> signOut() async {
     _currentUser = null;
+    _currentPassword = '';
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_userPrefKey);
-    // Reiniciar como invitado para no bloquear la app
-    _currentUser = UserModel.createDemo(name: 'Invitado', email: 'invitado@swipeflick.app');
+    await prefs.remove('${_userPrefKey}_pwd');
     notifyListeners();
   }
 

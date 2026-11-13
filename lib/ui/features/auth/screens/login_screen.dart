@@ -19,8 +19,8 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController(text: 'cinefilo@swipeflick.app');
-  final _passwordController = TextEditingController(text: 'password123');
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
   @override
@@ -76,22 +76,20 @@ class _LoginScreenState extends State<LoginScreen> {
     final auth = context.read<AuthService>();
     final mongo = context.read<MongoDbService>();
 
-    // 3. Validación de credenciales: comprobar contra MongoDB o AuthService
+    // 3. Validación de credenciales: comprobar contra MongoDB Atlas o AuthService
     bool credentialsValid = false;
 
-    if (mongo.isConnected) {
+    if (mongo.isConnected || await mongo.ensureConnected()) {
       final verified = await mongo.verifyUserCredentials(safeEmail, password);
       if (verified) {
         credentialsValid = true;
       }
     }
 
-    // Fallback con usuario local en memoria/prefs
+    // Fallback con usuario autenticado en la sesión si no hay conexión a internet
     if (!credentialsValid) {
       if (auth.verifyCurrentPassword(password) &&
-          (auth.currentUser?.email.toLowerCase() == safeEmail.toLowerCase() ||
-              safeEmail == 'cinefilo@swipeflick.app' ||
-              safeEmail == 'alex@swipeflick.app')) {
+          auth.currentUser?.email.toLowerCase() == safeEmail.toLowerCase()) {
         credentialsValid = true;
       }
     }
@@ -324,25 +322,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 isLoading: auth.isLoading,
                 onPressed: _submitLogin,
               ),
-              const SizedBox(height: 16),
-
-              OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size(double.infinity, 48),
-                ),
-                onPressed: () {
-                  auth.loginAsGuest();
-                  if (Navigator.of(context).canPop()) {
-                    Navigator.of(context).pop();
-                  } else {
-                    Navigator.of(context).pushReplacement(
-                      MaterialPageRoute(builder: (_) => const MainNavigationShell()),
-                    );
-                  }
-                },
-                child: const Text('Continuar como Invitado'),
-              ),
-              const SizedBox(height: 28),
+              const SizedBox(height: 24),
 
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,

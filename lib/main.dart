@@ -9,6 +9,7 @@ import 'data/services/mongodb_service.dart';
 import 'data/services/rate_limit_service.dart';
 import 'data/services/room_service.dart';
 import 'data/services/tmdb_service.dart';
+import 'ui/features/auth/screens/login_screen.dart';
 import 'ui/features/shell/screens/main_navigation_shell.dart';
 
 void main() async {
@@ -56,11 +57,17 @@ class SwipeFlickApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: AppConstants.appName,
-      debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
-      home: const MainNavigationShell(),
+    return Consumer<AuthService>(
+      builder: (context, authService, _) {
+        return MaterialApp(
+          title: AppConstants.appName,
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.darkTheme,
+          home: authService.isAuthenticated
+              ? const MainNavigationShell()
+              : const LoginScreen(),
+        );
+      },
     );
   }
 }

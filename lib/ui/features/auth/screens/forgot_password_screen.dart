@@ -146,7 +146,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     final navigator = Navigator.of(context);
 
     // 1. Actualizar en MongoDB Atlas con hash SHA-256 + salt
-    if (mongo.isConnected) {
+    if (mongo.isConnected || await mongo.ensureConnected()) {
       await mongo.updateUserPassword(
         email: email,
         newPasswordHash: newPass, // MongoDbService lo hashea automáticamente con salt
@@ -326,32 +326,28 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         ),
         const SizedBox(height: 12),
 
-        // Helper demostrativo / pruebas
-        InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: () {
-            setState(() {
-              _otpController.text = _generatedOtp;
-            });
-          },
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: AppColors.accentSubtle,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.lightbulb_outline_rounded, color: AppColors.accent, size: 16),
-                const SizedBox(width: 6),
-                Text(
-                  'Código generado: $_generatedOtp (Toca para autocompletar)',
-                  style: AppTextStyles.caption.copyWith(color: AppColors.accent, fontWeight: FontWeight.bold),
+        // Indicación informativa sin autocompletado
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          decoration: BoxDecoration(
+            color: AppColors.surfaceElevated,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: AppColors.surfaceBorder),
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.mark_email_unread_rounded, color: AppColors.accent, size: 18),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Copia o escribe el código de 6 dígitos recibido en tu correo electrónico.',
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.textSecondary,
+                    height: 1.3,
+                  ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
         const SizedBox(height: 24),
