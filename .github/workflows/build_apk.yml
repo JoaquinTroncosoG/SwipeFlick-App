@@ -18,11 +18,11 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Setup Java 17
+      - name: Setup Java 21
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
@@ -42,7 +42,7 @@ jobs:
       - name: Build Android APK (Release Universal)
         run: |
           set -o pipefail
-          flutter build apk --release --android-skip-build-dependency-validation -- --stacktrace 2>&1 | tee build_output.log
+          flutter build apk --release 2>&1 | tee build_output.log
 
       - name: Report Build Diagnostics on Failure
         if: failure()
@@ -67,5 +67,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh issue close 1 --comment "Resuelto automáticamente tras alinear Gradle 8.9." || true
           gh release create v1.10.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.10.0.apk --title "SwipeFlick v1.10.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.10.0.apk para instalar y probar en tu celular Android." --clobber
