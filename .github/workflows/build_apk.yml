@@ -67,4 +67,5 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh issue close 1 --comment "Resuelto automáticamente tras alinear Gradle 8.9." || true
           gh release create v1.10.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.10.0.apk --title "SwipeFlick v1.10.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.10.0.apk para instalar y probar en tu celular Android." --clobber
