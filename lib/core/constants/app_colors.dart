@@ -26,6 +26,7 @@ class AppColors {
   // Semánticos
   static const Color success = Color(0xFF4CAF50); // Aprobación / Like
   static const Color error = Color(0xFFEF5350);   // Rechazo / Nope
+  static const Color warning = Color(0xFFFFB74D); // Advertencias / Confirmación de salida
   static const Color info = Color(0xFF42A5F5);    // Datos / Enlaces
   static const Color superLike = Color(0xFF29B6F6);
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/cinema_avatar.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_image.dart';
 import '../../../../core/widgets/swipe_card.dart';
@@ -62,10 +63,81 @@ class _RoomPhase1CategoriesScreenState extends State<RoomPhase1CategoriesScreen>
     });
   }
 
+  Future<bool> _showExitConfirmation(
+    BuildContext context, {
+    required bool isHost,
+    required RoomService roomService,
+    required String? userId,
+  }) async {
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceElevated,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(
+              isHost ? Icons.warning_amber_rounded : Icons.logout_rounded,
+              color: isHost ? AppColors.warning : AppColors.accent,
+            ),
+            const SizedBox(width: 8),
+            Text(isHost ? '¿Cerrar la sala?' : '¿Salir de la sala?'),
+          ],
+        ),
+        content: Text(
+          isHost
+              ? 'Como anfitrión, al salir se cancelará la partida y los demás participantes regresarán al menú.'
+              : '¿Estás seguro de que deseas abandonar la sala actual?',
+          style: AppTextStyles.bodyMedium,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: isHost ? AppColors.error : AppColors.accent,
+            ),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: Text(isHost ? 'Cerrar Sala' : 'Salir'),
+          ),
+        ],
+      ),
+    );
+
+    if (result == true) {
+      await roomService.leaveRoom(userId: userId, isHost: isHost);
+      return true;
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final roomService = context.watch<RoomService>();
     final room = roomService.currentRoom;
+    final currentUser = context.watch<AuthService>().currentUser;
+
+    // Si la sala fue cerrada por el anfitrión, notificar al invitado y regresar
+    if (roomService.wasRoomClosedByHost) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
+        roomService.resetRoomClosedFlag();
+        Navigator.of(context).popUntil((route) => route.isFirst);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.surfaceElevated,
+            content: Text('📢 La sala ha sido cerrada por el anfitrión.'),
+            duration: Duration(seconds: 4),
+          ),
+        );
+      });
+      return const Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
+      );
+    }
 
     // Si ya avanzó a la celebración de categorías ganadoras, navegar
     if (room != null && room.phase == RoomPhase.categoryMatch) {
@@ -94,26 +166,50 @@ class _RoomPhase1CategoriesScreenState extends State<RoomPhase1CategoriesScreen>
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: Column(
-          children: [
-            Text('Fase 1: Categorías en Sala', style: AppTextStyles.h2.copyWith(fontSize: 16)),
-            Text('Sala: ${room.code}', style: AppTextStyles.caption.copyWith(color: AppColors.accent)),
+    final isHost = currentUser != null && room.hostId == currentUser.id;
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await _showExitConfirmation(
+          context,
+          isHost: isHost,
+          roomService: roomService,
+          userId: currentUser?.id,
+        );
+        if (shouldExit && context.mounted) {
+          Navigator.of(context).pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: Column(
+            children: [
+              Text('Fase 1: Categorías en Sala', style: AppTextStyles.h2.copyWith(fontSize: 16)),
+              Text('Sala: ${room.code}', style: AppTextStyles.caption.copyWith(color: AppColors.accent)),
+            ],
+          ),
+          actions: [
+            IconButton(
+              icon: const Icon(Icons.exit_to_app_rounded, color: AppColors.error),
+              tooltip: isHost ? 'Cerrar sala' : 'Salir de la sala',
+              onPressed: () async {
+                final shouldExit = await _showExitConfirmation(
+                  context,
+                  isHost: isHost,
+                  roomService: roomService,
+                  userId: currentUser?.id,
+                );
+                if (shouldExit && context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+            ),
+            const SizedBox(width: 8),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.exit_to_app_rounded, color: AppColors.error),
-            onPressed: () {
-              roomService.leaveRoom();
-              Navigator.of(context).pop();
-            },
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
           : SafeArea(
@@ -157,9 +253,10 @@ class _RoomPhase1CategoriesScreenState extends State<RoomPhase1CategoriesScreen>
                               margin: const EdgeInsets.only(left: 4),
                               child: Stack(
                                 children: [
-                                  CircleAvatar(
+                                  CinemaAvatar(
                                     radius: 14,
-                                    backgroundImage: NetworkImage(m.avatarUrl),
+                                    avatarUrl: m.avatarUrl,
+                                    fallbackText: m.username,
                                   ),
                                   if (hasVotedCurrent)
                                     Positioned(
@@ -214,6 +311,7 @@ class _RoomPhase1CategoriesScreenState extends State<RoomPhase1CategoriesScreen>
                 ],
               ),
             ),
+      ),
     );
   }
 

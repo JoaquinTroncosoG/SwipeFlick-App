@@ -5,6 +5,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/utils/security_helper.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../data/services/auth_service.dart';
+import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/mongodb_service.dart';
 import '../../../../data/services/rate_limit_service.dart';
 import '../../shell/screens/main_navigation_shell.dart';
@@ -97,7 +98,20 @@ class _LoginScreenState extends State<LoginScreen> {
     // 4. Procesar resultado
     if (credentialsValid) {
       await rateLimit.recordSuccessfulLogin();
-      await auth.signIn(email: safeEmail, password: password);
+      final userDoc = await mongo.findUserByEmail(safeEmail);
+      final remoteUsername = userDoc?['username'] as String?;
+      final remoteAvatar = userDoc?['avatarUrl'] as String?;
+
+      await auth.signIn(
+        email: safeEmail,
+        password: password,
+        remoteUsername: remoteUsername,
+        remoteAvatarUrl: remoteAvatar,
+      );
+
+      if (mounted) {
+        await context.read<FavoritesService>().attachUser(safeEmail, mongo);
+      }
 
       if (mounted) {
         messenger.showSnackBar(

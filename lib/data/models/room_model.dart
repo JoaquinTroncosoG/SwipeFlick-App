@@ -15,6 +15,7 @@ enum RoomStatus {
   movies,
   completed,
   expired,
+  closed,
 }
 
 class RoomMemberModel {

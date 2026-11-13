@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.14.0';
-  static const int changeCounter = 15;
-  static const String appVersionDisplay = 'v1.14.0 • Cambio #15';
+  static const String appVersion = '1.15.0';
+  static const int changeCounter = 16;
+  static const String appVersionDisplay = 'v1.15.0 • Cambio #16';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -86,6 +86,11 @@ class AppConstants {
       'version': '1.14.0 (Cambio #15)',
       'title': 'Votación Atómica Multijugador, Baraja Compartida & Consenso Inmediato',
       'description': 'Registro atómico de votos (addToSet) en MongoDB Atlas para evitar sobreescritura entre celulares; baraja compartida única de películas (movieDeck) para todos los miembros; evaluación continua de consenso unánime y transición instantánea a coincidencias.',
+    },
+    {
+      'version': '1.15.0 (Cambio #16)',
+      'title': 'Salida Dinámica de Salas, Avatares Fotográficos en Vivo & Biblioteca en la Nube',
+      'description': 'Sincronización de abandono y cierre de salas en MongoDB Atlas (el anfitrión ve salir a participantes y los invitados son devueltos con aviso si la sala cierra); soporte universal de avatares fotográficos de galería (Base64) visibles en todas las pantallas de sala; y persistencia de Mi Lista en MongoDB Atlas sin películas mock para cuentas nuevas.',
     },
   ];
 

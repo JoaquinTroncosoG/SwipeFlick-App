@@ -16,10 +16,16 @@ class RoomService extends ChangeNotifier {
   Timer? _syncTimer;
   MongoDbService? _mongoService;
   String? _lastError;
+  bool _wasRoomClosedByHost = false;
 
   RoomModel? get currentRoom => _currentRoom;
   bool get isInRoom => _currentRoom != null;
   String? get lastError => _lastError;
+  bool get wasRoomClosedByHost => _wasRoomClosedByHost;
+
+  void resetRoomClosedFlag() {
+    _wasRoomClosedByHost = false;
+  }
 
   /// Conecta el servicio con MongoDB Atlas para persistencia y sincronización en tiempo real
   void attachMongoDb(MongoDbService mongo) {
@@ -48,7 +54,17 @@ class RoomService extends ChangeNotifier {
     if (_currentRoom == null || _mongoService == null) return;
     try {
       final remoteRoom = await _mongoService!.getRoomByCode(_currentRoom!.code);
-      if (remoteRoom == null) return;
+      if (remoteRoom == null || remoteRoom.status == RoomStatus.closed) {
+        debugPrint('[RoomService] Sala cerrada por el anfitrión o no encontrada en Atlas.');
+        _syncTimer?.cancel();
+        _syncTimer = null;
+        _expirationTimer?.cancel();
+        _expirationTimer = null;
+        _currentRoom = null;
+        _wasRoomClosedByHost = true;
+        notifyListeners();
+        return;
+      }
 
       // Fusionar categoryLikes (likes locales + likes remotos de Atlas)
       final mergedCategoryLikes = Map<int, List<String>>.from(remoteRoom.categoryLikes);
@@ -537,14 +553,34 @@ class RoomService extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Salir o destruir la sala
-  void leaveRoom() {
+  /// Salir o destruir la sala grupal sincronizando en MongoDB Atlas
+  Future<void> leaveRoom({String? userId, bool isHost = false}) async {
+    final room = _currentRoom;
     _syncTimer?.cancel();
     _syncTimer = null;
     _expirationTimer?.cancel();
     _expirationTimer = null;
     _currentRoom = null;
     _lastError = null;
+
+    if (room != null && _mongoService != null) {
+      try {
+        final hostLeaving = isHost || (userId != null && room.hostId == userId);
+        if (hostLeaving) {
+          debugPrint('[RoomService] El anfitrión cerró la sala ${room.code}');
+          await _mongoService!.closeRoom(room.code);
+        } else if (userId != null) {
+          debugPrint('[RoomService] Participante $userId abandonó la sala ${room.code}');
+          await _mongoService!.removeMemberFromRoom(
+            roomCode: room.code,
+            userId: userId,
+          );
+        }
+      } catch (e) {
+        debugPrint('[RoomService] Error al notificar salida a MongoDB: $e');
+      }
+    }
+
     notifyListeners();
   }
 

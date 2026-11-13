@@ -6,6 +6,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/brevo_email_service.dart';
+import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/mongodb_service.dart';
 import '../../shell/screens/main_navigation_shell.dart';
 import 'login_screen.dart';
@@ -298,6 +299,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         recipientEmail: user.email,
                         recipientName: user.username,
                       );
+
+                      if (context.mounted) {
+                        await context.read<FavoritesService>().attachUser(user.email, mongo);
+                      }
                     }
 
                     messenger.showSnackBar(

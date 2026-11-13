@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
@@ -5,9 +6,11 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/widgets/cinema_avatar.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/brevo_email_service.dart';
+import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/mongodb_service.dart';
 import '../../../../data/services/tmdb_service.dart';
 import '../../auth/screens/login_screen.dart';
@@ -58,19 +61,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   ];
 
   ImageProvider _getAvatarImageProvider(String? url) {
-    if (url == null || url.trim().isEmpty) {
-      return const NetworkImage('https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150');
-    }
-    if (url.startsWith('http://') || url.startsWith('https://')) {
-      return NetworkImage(url);
-    }
-    try {
-      final file = File(url);
-      if (file.existsSync()) {
-        return FileImage(file);
-      }
-    } catch (_) {}
-    return NetworkImage(url);
+    return CinemaAvatar.getAvatarImageProvider(url);
   }
 
   void _showAvatarPicker(BuildContext context) {
@@ -123,17 +114,26 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         final picker = ImagePicker();
                         final pickedImage = await picker.pickImage(
                           source: ImageSource.gallery,
-                          maxWidth: 800,
-                          maxHeight: 800,
-                          imageQuality: 85,
+                          maxWidth: 320,
+                          maxHeight: 320,
+                          imageQuality: 70,
                         );
                         if (pickedImage != null) {
-                          await auth.updateAvatarUrl(pickedImage.path);
+                          final bytes = await pickedImage.readAsBytes();
+                          final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+                          await auth.updateAvatarUrl(base64Image);
                           if (context.mounted) {
+                            final mongoService = context.read<MongoDbService>();
+                            if (auth.currentUser != null && (mongoService.isConnected || await mongoService.ensureConnected())) {
+                              await mongoService.updateUserProfile(
+                                email: auth.currentUser!.email,
+                                avatarUrl: base64Image,
+                              );
+                            }
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 backgroundColor: AppColors.surfaceElevated,
-                                content: Text('¡Foto de perfil actualizada desde la galería! 📸'),
+                                content: Text('¡Foto de perfil actualizada y visible en tus salas! 📸'),
                                 duration: Duration(seconds: 2),
                               ),
                             );
@@ -169,8 +169,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         final item = _presetAvatars[index];
                         final isSelected = item['url'] == currentAvatar;
                         return GestureDetector(
-                          onTap: () {
-                            auth.updateAvatarUrl(item['url']!);
+                          onTap: () async {
+                            final selectedUrl = item['url']!;
+                            await auth.updateAvatarUrl(selectedUrl);
+                            if (context.mounted) {
+                              final mongoService = context.read<MongoDbService>();
+                              if (auth.currentUser != null && (mongoService.isConnected || await mongoService.ensureConnected())) {
+                                await mongoService.updateUserProfile(
+                                  email: auth.currentUser!.email,
+                                  avatarUrl: selectedUrl,
+                                );
+                              }
+                            }
                             Navigator.of(ctx).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
@@ -228,15 +238,24 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           backgroundColor: AppColors.accent,
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
-                        onPressed: () {
+                        onPressed: () async {
                           final val = urlController.text.trim();
-                          if (val.isNotEmpty && val.startsWith('http')) {
-                            auth.updateAvatarUrl(val);
+                          if (val.isNotEmpty && (val.startsWith('http') || val.startsWith('data:image/'))) {
+                            await auth.updateAvatarUrl(val);
+                            if (context.mounted) {
+                              final mongoService = context.read<MongoDbService>();
+                              if (auth.currentUser != null && (mongoService.isConnected || await mongoService.ensureConnected())) {
+                                await mongoService.updateUserProfile(
+                                  email: auth.currentUser!.email,
+                                  avatarUrl: val,
+                                );
+                              }
+                            }
                             Navigator.of(ctx).pop();
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 backgroundColor: AppColors.surfaceElevated,
-                                content: Text('Foto de perfil actualizada'),
+                                content: Text('Foto de perfil actualizada y sincronizada'),
                                 duration: Duration(seconds: 2),
                               ),
                             );
@@ -1409,6 +1428,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   minimumSize: const Size(double.infinity, 44),
                 ),
                 onPressed: () async {
+                  if (context.mounted) {
+                    context.read<FavoritesService>().clearOnSignOut();
+                  }
                   await auth.signOut();
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(

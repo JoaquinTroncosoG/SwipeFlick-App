@@ -36,6 +36,8 @@ void main() async {
 
   final roomService = RoomService();
   roomService.attachMongoDb(mongoDbService);
+  authService.attachMongoDb(mongoDbService);
+  await favoritesService.attachUser(authService.currentUser?.email, mongoDbService);
 
   runApp(
     MultiProvider(

@@ -3,17 +3,23 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils/security_helper.dart';
 import '../models/user_model.dart';
+import 'mongodb_service.dart';
 
 class AuthService extends ChangeNotifier {
   static const String _userPrefKey = 'swipeflick_current_user';
   UserModel? _currentUser;
   String _currentPassword = '';
   bool _isLoading = false;
+  MongoDbService? _mongoService;
 
   UserModel? get currentUser => _currentUser;
   bool get isAuthenticated => _currentUser != null;
   bool get isLoading => _isLoading;
   String get currentPassword => _currentPassword;
+
+  void attachMongoDb(MongoDbService mongo) {
+    _mongoService = mongo;
+  }
 
   /// Verifica si la contraseña coincide usando comparación segura en tiempo constante contra el hash
   bool verifyCurrentPassword(String candidate) {
@@ -56,7 +62,12 @@ class AuthService extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<bool> signIn({required String email, required String password}) async {
+  Future<bool> signIn({
+    required String email,
+    required String password,
+    String? remoteUsername,
+    String? remoteAvatarUrl,
+  }) async {
     _isLoading = true;
     notifyListeners();
     await Future.delayed(const Duration(milliseconds: 600)); // Simula red
@@ -68,12 +79,18 @@ class AuthService extends ChangeNotifier {
     await prefs.setString('${_userPrefKey}_pwd', pwdHash);
 
     final rawName = email.split('@').first;
-    final safeUsername = SecurityHelper.sanitizeUsername(rawName.isNotEmpty ? rawName : 'Cinéfilo');
+    final safeUsername = (remoteUsername != null && remoteUsername.trim().isNotEmpty)
+        ? remoteUsername.trim()
+        : SecurityHelper.sanitizeUsername(rawName.isNotEmpty ? rawName : 'Cinéfilo');
+    final safeAvatarUrl = (remoteAvatarUrl != null && remoteAvatarUrl.trim().isNotEmpty)
+        ? remoteAvatarUrl.trim()
+        : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+
     _currentUser = UserModel(
       id: 'usr_${email.hashCode.abs()}',
       email: safeEmail,
       username: safeUsername,
-      avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+      avatarUrl: safeAvatarUrl,
       createdAt: DateTime.now(),
     );
 
@@ -123,15 +140,33 @@ class AuthService extends ChangeNotifier {
 
   Future<void> updateUsername(String newName) async {
     if (_currentUser == null) return;
-    _currentUser = _currentUser!.copyWith(username: newName.trim());
+    final cleanName = newName.trim();
+    _currentUser = _currentUser!.copyWith(username: cleanName);
     await _saveUser();
+    if (_mongoService != null) {
+      try {
+        await _mongoService!.updateUserProfile(
+          email: _currentUser!.email,
+          username: cleanName,
+        );
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
   Future<void> updateAvatarUrl(String newAvatarUrl) async {
     if (_currentUser == null) return;
-    _currentUser = _currentUser!.copyWith(avatarUrl: newAvatarUrl.trim());
+    final cleanAvatar = newAvatarUrl.trim();
+    _currentUser = _currentUser!.copyWith(avatarUrl: cleanAvatar);
     await _saveUser();
+    if (_mongoService != null) {
+      try {
+        await _mongoService!.updateUserProfile(
+          email: _currentUser!.email,
+          avatarUrl: cleanAvatar,
+        );
+      } catch (_) {}
+    }
     notifyListeners();
   }
 

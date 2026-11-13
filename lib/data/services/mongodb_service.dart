@@ -646,6 +646,156 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
+  /// Elimina a un participante de una sala grupal en MongoDB Atlas
+  Future<bool> removeMemberFromRoom({
+    required String roomCode,
+    required String userId,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+
+      final doc = await collection.findOne(where.eq('code', cleanCode));
+      if (doc == null) return false;
+
+      final membersList = (doc['members'] as List? ?? [])
+          .where((m) => m is Map && (m['user_id'] != userId && m['userId'] != userId))
+          .toList();
+
+      await collection.updateOne(
+        where.eq('code', cleanCode),
+        modify
+            .set('members', membersList)
+            .set('updated_at', DateTime.now().toIso8601String()),
+      );
+      debugPrint('[MongoDB] Participante $userId retirado de la sala $cleanCode');
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al retirar participante de la sala: $e');
+      return false;
+    }
+  }
+
+  /// Cierra una sala oficialmente en MongoDB Atlas notificando a los demás miembros
+  Future<bool> closeRoom(String roomCode) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+      await collection.updateOne(
+        where.eq('code', cleanCode),
+        modify
+            .set('status', RoomStatus.closed.name)
+            .set('closed_at', DateTime.now().toIso8601String())
+            .set('updated_at', DateTime.now().toIso8601String()),
+      );
+      debugPrint('[MongoDB] Sala $cleanCode marcada como CERRADA en Atlas.');
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al cerrar sala en Atlas: $e');
+      return false;
+    }
+  }
+
+  /// Obtener la lista de favoritos personales ("Mi Lista") de un usuario en MongoDB Atlas
+  Future<List<Map<String, dynamic>>> getUserFavorites(String email) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return [];
+    }
+    final safeEmail = SecurityHelper.sanitizeEmail(email);
+    if (safeEmail == null) return [];
+    try {
+      final collection = _db!.collection('users');
+      final user = await collection.findOne(where.eq('email', safeEmail));
+      if (user != null && user['favorites'] is List) {
+        return (user['favorites'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[MongoDB] Error al consultar favoritos de usuario en Atlas: $e');
+      return [];
+    }
+  }
+
+  /// Guardar la lista de favoritos personales ("Mi Lista") de un usuario en MongoDB Atlas
+  Future<bool> saveUserFavorites(String email, List<Map<String, dynamic>> favorites) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    final safeEmail = SecurityHelper.sanitizeEmail(email);
+    if (safeEmail == null) return false;
+    try {
+      final collection = _db!.collection('users');
+      final result = await collection.updateOne(
+        where.eq('email', safeEmail),
+        modify
+            .set('favorites', favorites)
+            .set('updatedAt', DateTime.now().toIso8601String()),
+      );
+      return result.isSuccess;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al guardar favoritos en Atlas: $e');
+      return false;
+    }
+  }
+
+  /// Obtener el historial de matches de un usuario en MongoDB Atlas
+  Future<List<Map<String, dynamic>>> getUserMatchesHistory(String email) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return [];
+    }
+    final safeEmail = SecurityHelper.sanitizeEmail(email);
+    if (safeEmail == null) return [];
+    try {
+      final collection = _db!.collection('users');
+      final user = await collection.findOne(where.eq('email', safeEmail));
+      if (user != null && user['matches_history'] is List) {
+        return (user['matches_history'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+      }
+      return [];
+    } catch (e) {
+      debugPrint('[MongoDB] Error al consultar historial de matches en Atlas: $e');
+      return [];
+    }
+  }
+
+  /// Guardar el historial de matches de un usuario en MongoDB Atlas
+  Future<bool> saveUserMatchesHistory(String email, List<Map<String, dynamic>> history) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    final safeEmail = SecurityHelper.sanitizeEmail(email);
+    if (safeEmail == null) return false;
+    try {
+      final collection = _db!.collection('users');
+      final result = await collection.updateOne(
+        where.eq('email', safeEmail),
+        modify
+            .set('matches_history', history)
+            .set('updatedAt', DateTime.now().toIso8601String()),
+      );
+      return result.isSuccess;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al guardar historial de matches en Atlas: $e');
+      return false;
+    }
+  }
+
   /// Sincronizar o guardar estado básico de una sala (retrocompatibilidad)
   Future<bool> syncRoom(Map<String, dynamic> roomData) async {
     if (!isConnected || _db == null) return false;
