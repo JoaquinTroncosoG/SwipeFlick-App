@@ -19,7 +19,7 @@ COPY . .
 # Argumentos de compilación opcionales para inyección segura de variables
 ARG MONGODB_URI=""
 ARG BREVO_API_KEY=""
-ARG BREVO_SENDER_EMAIL="noreply@swipeflick.app"
+ARG BREVO_SENDER_EMAIL="joaquin1troncoso@gmail.com"
 
 # Compilar la aplicación web optimizada para producción
 RUN flutter build web --release \

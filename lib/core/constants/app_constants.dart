@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.11.0';
-  static const int changeCounter = 12;
-  static const String appVersionDisplay = 'v1.11.0 • Cambio #12';
+  static const String appVersion = '1.12.0';
+  static const int changeCounter = 13;
+  static const String appVersionDisplay = 'v1.12.0 • Cambio #13';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -71,6 +71,11 @@ class AppConstants {
       'version': '1.11.0 (Cambio #12)',
       'title': 'Health Check UptimeRobot, Flujo Estricto de Autenticación & Conexión Nativa Atlas/Brevo',
       'description': 'Endpoint /health para monitor UptimeRobot 24/7 en Render; inicio estricto en Login sin cuentas demo/invitadas precargadas; remoción de autocompletado en código de verificación OTP; inyección de credenciales Atlas/Brevo en APK e informe de autorizaciones IP.',
+    },
+    {
+      'version': '1.12.0 (Cambio #13)',
+      'title': 'Corrección Remitente Verificado Brevo & Desbloqueo de Destinatarios',
+      'description': 'Configuración de remitente predeterminado con cuenta verificada en Brevo (joaquin1troncoso@gmail.com) reemplazando noreply no autenticado; desbloqueo de contactos suprimidos y entrega garantizada de correos OTP en bandejas de entrada Gmail.',
     },
   ];
 

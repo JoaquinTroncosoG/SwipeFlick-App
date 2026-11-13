@@ -77,21 +77,21 @@ jobs:
           mkdir -p build/app/outputs/flutter-apk
           APK_FILE=$(find . -name "*release*.apk" -o -name "app-release.apk" | head -n 1)
           echo "Found APK file to package: $APK_FILE"
-          cp "$APK_FILE" build/app/outputs/flutter-apk/SwipeFlick-v1.11.0.apk
-          ls -lh build/app/outputs/flutter-apk/SwipeFlick-v1.11.0.apk
+          cp "$APK_FILE" build/app/outputs/flutter-apk/SwipeFlick-v1.12.0.apk
+          ls -lh build/app/outputs/flutter-apk/SwipeFlick-v1.12.0.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SwipeFlick-Android-APK
-          path: build/app/outputs/flutter-apk/SwipeFlick-v1.11.0.apk
+          path: build/app/outputs/flutter-apk/SwipeFlick-v1.12.0.apk
           retention-days: 30
 
       - name: Publish GitHub Release with APK
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete v1.11.0-apk --yes || true
-          git tag -d v1.11.0-apk 2>/dev/null || true
-          git push origin :refs/tags/v1.11.0-apk 2>/dev/null || true
-          gh release create v1.11.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.11.0.apk --title "SwipeFlick v1.11.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.11.0.apk para instalar y probar en tu celular Android."
+          gh release delete v1.12.0-apk --yes || true
+          git tag -d v1.12.0-apk 2>/dev/null || true
+          git push origin :refs/tags/v1.12.0-apk 2>/dev/null || true
+          gh release create v1.12.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.12.0.apk --title "SwipeFlick v1.12.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.12.0.apk para instalar y probar en tu celular Android."

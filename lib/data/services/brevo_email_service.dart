@@ -31,7 +31,8 @@ class BrevoEmailService extends ChangeNotifier {
   }
 
   String? _apiKey;
-  String _senderEmail = const String.fromEnvironment('BREVO_SENDER_EMAIL', defaultValue: 'noreply@swipeflick.app');
+  static const String defaultSenderEmail = 'joaquin1troncoso@gmail.com';
+  String _senderEmail = const String.fromEnvironment('BREVO_SENDER_EMAIL', defaultValue: defaultSenderEmail);
   String _senderName = 'SwipeFlick';
   String? _lastError;
 
@@ -52,8 +53,15 @@ class BrevoEmailService extends ChangeNotifier {
       _apiKey = '';
     }
 
-    _senderEmail = prefs.getString(_prefSenderEmail) ??
-        const String.fromEnvironment('BREVO_SENDER_EMAIL', defaultValue: 'noreply@swipeflick.app');
+    final savedSender = prefs.getString(_prefSenderEmail);
+    if (savedSender != null &&
+        savedSender.trim().isNotEmpty &&
+        !savedSender.contains('noreply@swipeflick.app')) {
+      _senderEmail = savedSender.trim();
+    } else {
+      _senderEmail = const String.fromEnvironment('BREVO_SENDER_EMAIL', defaultValue: defaultSenderEmail);
+      await prefs.setString(_prefSenderEmail, _senderEmail);
+    }
     _senderName = prefs.getString(_prefSenderName) ?? 'SwipeFlick';
     notifyListeners();
   }
@@ -65,7 +73,9 @@ class BrevoEmailService extends ChangeNotifier {
   }) async {
     final prefs = await SharedPreferences.getInstance();
     _apiKey = apiKey.trim().isEmpty ? null : apiKey.trim();
-    _senderEmail = senderEmail.trim().isEmpty ? 'noreply@swipeflick.app' : senderEmail.trim();
+    _senderEmail = (senderEmail.trim().isEmpty || senderEmail.contains('noreply@swipeflick.app'))
+        ? defaultSenderEmail
+        : senderEmail.trim();
     if (senderName != null && senderName.trim().isNotEmpty) {
       _senderName = senderName.trim();
     }
@@ -105,7 +115,9 @@ class BrevoEmailService extends ChangeNotifier {
         body: jsonEncode({
           'sender': {
             'name': _senderName,
-            'email': _senderEmail,
+            'email': (_senderEmail.isNotEmpty && !_senderEmail.contains('noreply@swipeflick.app'))
+                ? _senderEmail
+                : defaultSenderEmail,
           },
           'to': [
             {
