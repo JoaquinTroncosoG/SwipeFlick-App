@@ -42,7 +42,7 @@ jobs:
       - name: Build Android APK (Release Universal)
         run: |
           set -o pipefail
-          flutter build apk --release --android-skip-build-dependency-validation 2>&1 | tee build_output.log
+          flutter build apk --release --android-skip-build-dependency-validation -- --stacktrace 2>&1 | tee build_output.log
 
       - name: Report Build Diagnostics on Failure
         if: failure()
