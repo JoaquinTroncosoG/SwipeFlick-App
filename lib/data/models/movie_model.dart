@@ -1,4 +1,6 @@
 import '../../core/constants/app_constants.dart';
+import '../mock/mock_movies_data.dart';
+import 'genre_model.dart';
 import 'streaming_provider_model.dart';
 import 'review_model.dart';
 
@@ -69,6 +71,38 @@ class MovieModel {
 
   String get backdropUrl => fullBackdropUrl;
 
+  /// Obtener la lista de nombres de géneros en español garantizando que nunca quede vacía
+  /// si la película cuenta con genreIds de TMDB o catálogo base.
+  List<String> get displayGenres {
+    if (genres.isNotEmpty && genres.any((g) => g.trim().isNotEmpty)) {
+      return genres.where((g) => g.trim().isNotEmpty).toList();
+    }
+    if (genreIds.isNotEmpty) {
+      final resolved = <String>[];
+      for (final id in genreIds) {
+        final match = GenreModel.defaultGenres.cast<GenreModel?>().firstWhere(
+              (g) => g?.id == id,
+              orElse: () => null,
+            );
+        if (match != null && !resolved.contains(match.name)) {
+          resolved.add(match.name);
+        }
+      }
+      if (resolved.isNotEmpty) return resolved;
+    }
+    // Fallback con mockMovies por ID o título
+    final mockMatch = MockMoviesData.sampleMovies.cast<MovieModel?>().firstWhere(
+          (m) => m?.id == id || (m?.title.toLowerCase() == title.toLowerCase()),
+          orElse: () => null,
+        );
+    if (mockMatch != null && mockMatch.genres.isNotEmpty) {
+      return mockMatch.genres;
+    }
+    return [];
+  }
+
+  String get displayGenresText => displayGenres.join(', ');
+
   factory MovieModel.fromJson(Map<String, dynamic> json) {
     // Géneros
     List<String> parsedGenres = [];
@@ -82,9 +116,27 @@ class MovieModel {
           parsedGenres.add(g);
         }
       }
-    } else if (json['genre_ids'] is List) {
+    }
+    if (json['genre_ids'] is List) {
       for (var id in json['genre_ids']) {
-        if (id is int) parsedGenreIds.add(id);
+        if (id is int && !parsedGenreIds.contains(id)) parsedGenreIds.add(id);
+      }
+    } else if (json['genreIds'] is List) {
+      for (var id in json['genreIds']) {
+        if (id is int && !parsedGenreIds.contains(id)) parsedGenreIds.add(id);
+      }
+    }
+
+    // Auto-resolver parsedGenres en español si vino vacío desde TMDB (discover / trending / search)
+    if (parsedGenres.isEmpty && parsedGenreIds.isNotEmpty) {
+      for (final id in parsedGenreIds) {
+        final match = GenreModel.defaultGenres.cast<GenreModel?>().firstWhere(
+              (g) => g?.id == id,
+              orElse: () => null,
+            );
+        if (match != null && !parsedGenres.contains(match.name)) {
+          parsedGenres.add(match.name);
+        }
       }
     }
 

@@ -6,7 +6,9 @@ import 'package:swipeflick/core/utils/security_helper.dart';
 import 'package:swipeflick/data/mock/mock_movies_data.dart';
 import 'package:swipeflick/core/widgets/cinema_snackbar.dart';
 import 'package:swipeflick/data/models/genre_model.dart';
+import 'package:swipeflick/data/models/movie_model.dart';
 import 'package:swipeflick/data/models/room_model.dart';
+import 'package:swipeflick/data/services/favorites_service.dart';
 import 'package:swipeflick/data/services/tmdb_service.dart';
 import 'package:swipeflick/data/models/user_model.dart';
 import 'package:swipeflick/data/services/auth_service.dart';
@@ -17,11 +19,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.17.0');
-      expect(AppConstants.changeCounter, 18);
-      expect(AppConstants.appVersionDisplay, contains('v1.17.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #18'));
-      expect(AppConstants.changeLog.length, 19);
+      expect(AppConstants.appVersion, '1.18.0');
+      expect(AppConstants.changeCounter, 19);
+      expect(AppConstants.appVersionDisplay, contains('v1.18.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #19'));
+      expect(AppConstants.changeLog.length, 20);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -326,6 +328,46 @@ void main() {
       final reconstructed = RoomModel.fromJson(json);
       expect(reconstructed.maxMembers, 14);
       expect(reconstructed.excludeMatches, true);
+    });
+
+    test('MovieModel resuelve géneros automáticamente desde genre_ids de TMDB', () {
+      // Simulación de película de TMDB descubierta en vivo sin campo 'genres' string
+      final tmdbRaw = {
+        'id': 99901,
+        'title': 'La Leyenda del Charro Negro',
+        'overview': 'Una leyenda animada.',
+        'genre_ids': [16, 10751, 14], // Animación, Familia, Fantasía
+        'vote_average': 8.4,
+      };
+
+      final movie = MovieModel.fromJson(tmdbRaw);
+      expect(movie.displayGenres.isNotEmpty, true);
+      expect(movie.displayGenres, contains('Animación'));
+      expect(movie.displayGenres, contains('Familia'));
+      expect(movie.displayGenres, contains('Fantasía'));
+      expect(movie.displayGenresText, 'Animación, Familia, Fantasía');
+    });
+
+    test('FavoritesService permite eliminar match individual y vaciar historial', () async {
+      SharedPreferences.setMockInitialValues({});
+      final favs = FavoritesService();
+      await favs.init();
+
+      final movie1 = MovieModel(id: 101, title: 'Barbie', overview: 'Barbie world', rating: 7.1);
+      final movie2 = MovieModel(id: 102, title: 'Oppenheimer', overview: 'Física nuclear', rating: 8.5);
+
+      await favs.addMatchToHistory(movie1);
+      await favs.addMatchToHistory(movie2);
+      expect(favs.matchesHistory.length, 2);
+
+      // Eliminar un match específico (deslizar a la izquierda)
+      await favs.removeMatch(101);
+      expect(favs.matchesHistory.length, 1);
+      expect(favs.matchesHistory.first.id, 102);
+
+      // Vaciar historial por completo (botón borrar historial)
+      await favs.clearMatchesHistory();
+      expect(favs.matchesHistory.isEmpty, true);
     });
   });
 }

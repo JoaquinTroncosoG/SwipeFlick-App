@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.17.0';
-  static const int changeCounter = 18;
-  static const String appVersionDisplay = 'v1.17.0 • Cambio #18';
+  static const String appVersion = '1.18.0';
+  static const int changeCounter = 19;
+  static const String appVersionDisplay = 'v1.18.0 • Cambio #19';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -101,6 +101,11 @@ class AppConstants {
       'version': '1.17.0 (Cambio #18)',
       'title': 'Salas Personalizables, Filtro de Matches Vistas & Restauración de Afiches de Categorías',
       'description': 'Capacidad máxima de sala personalizable de 2 a 50 participantes con selector interactivo y chips rápidos; nueva opción para el host "¿Considerar películas matches?" que analiza la biblioteca y matches de todos los miembros en la nube para omitir títulos ya vistos; resolución del bug de tarjetas de categorías enriqueciendo los 19 géneros de TMDB con sus afiches oficiales verificados; y simplificación de Perfil retirando el botón de iniciar sesión para dejar solo el cierre de sesión.',
+    },
+    {
+      'version': '1.18.0 (Cambio #19)',
+      'title': 'Géneros Visibles en Todos los Matches, Borrado Total & Deslizar para Eliminar (Spotify)',
+      'description': 'Corrección de géneros cinematográficos en todas las películas de TMDB (auto-resolución desde genreIds en español); botón de "Borrar Historial" en AppBar con diálogo de confirmación; animación Dismissible estilo Spotify para deslizar a la izquierda con recuadro rojo y basurero al eliminar un título específico; y texto explicativo al pie de la lista de matches.',
     },
   ];
 

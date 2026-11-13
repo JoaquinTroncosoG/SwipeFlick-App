@@ -160,6 +160,74 @@ class FavoritesService extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> removeFavorite(int movieId) async {
+    _favorites.removeWhere((m) => m.id == movieId);
+    await _saveLocalFavorites();
+
+    if (_mongoService != null && _currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+      try {
+        await _mongoService!.saveUserFavorites(
+          _currentUserEmail!,
+          _favorites.map((m) => m.toJson()).toList(),
+        );
+      } catch (e) {
+        debugPrint('[FavoritesService] Error al actualizar favoritos en Atlas: $e');
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> clearFavorites() async {
+    _favorites.clear();
+    await _saveLocalFavorites();
+
+    if (_mongoService != null && _currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+      try {
+        await _mongoService!.saveUserFavorites(
+          _currentUserEmail!,
+          [],
+        );
+      } catch (e) {
+        debugPrint('[FavoritesService] Error al vaciar favoritos en Atlas: $e');
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> removeMatch(int movieId) async {
+    _matchesHistory.removeWhere((m) => m.id == movieId);
+    await _saveLocalMatches();
+
+    if (_mongoService != null && _currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+      try {
+        await _mongoService!.saveUserMatchesHistory(
+          _currentUserEmail!,
+          _matchesHistory.map((m) => m.toJson()).toList(),
+        );
+      } catch (e) {
+        debugPrint('[FavoritesService] Error al eliminar match en Atlas: $e');
+      }
+    }
+    notifyListeners();
+  }
+
+  Future<void> clearMatchesHistory() async {
+    _matchesHistory.clear();
+    await _saveLocalMatches();
+
+    if (_mongoService != null && _currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+      try {
+        await _mongoService!.saveUserMatchesHistory(
+          _currentUserEmail!,
+          [],
+        );
+      } catch (e) {
+        debugPrint('[FavoritesService] Error al vaciar historial de matches en Atlas: $e');
+      }
+    }
+    notifyListeners();
+  }
+
   Future<void> _saveLocalFavorites() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_favsKey, jsonEncode(_favorites.map((m) => m.toJson()).toList()));
