@@ -40,7 +40,7 @@ jobs:
 
       - name: Build Android APK (Release Universal)
         run: |
-          flutter build apk --release \
+          flutter build apk --release -v \
             --dart-define=MONGODB_URI="${{ secrets.MONGODB_URI }}" \
             --dart-define=BREVO_API_KEY="${{ secrets.BREVO_API_KEY }}" \
             --dart-define=BREVO_SENDER_EMAIL="noreply@swipeflick.app"
