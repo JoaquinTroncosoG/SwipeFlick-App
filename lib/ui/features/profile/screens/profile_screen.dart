@@ -1400,20 +1400,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
               const SizedBox(height: 28),
 
-              // Botones de Sesión
-              CinemaButton(
-                text: 'Iniciar Sesión / Cambiar Cuenta',
-                icon: Icons.login_rounded,
-                variant: CinemaButtonVariant.secondary,
-                width: double.infinity,
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-
+              // Botón de Cerrar Sesión
               OutlinedButton.icon(
                 icon: const Icon(Icons.logout_rounded, size: 18),
                 label: const Text('Cerrar Sesión'),

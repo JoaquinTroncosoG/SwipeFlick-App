@@ -268,6 +268,32 @@ class RoomLobbyScreen extends StatelessWidget {
                   ),
                 ],
               ),
+              if (room.excludeMatches) ...[
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.accentSubtle,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.accent.withValues(alpha: 0.5)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.auto_awesome_rounded, color: AppColors.accent, size: 18),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          'Filtro de matches activo: se excluirán las películas ya vistas o guardadas por los participantes.',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.accent,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 28),
 
               // Lista de Participantes Conectados (Supabase Presence)

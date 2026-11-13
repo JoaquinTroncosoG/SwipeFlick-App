@@ -5,6 +5,8 @@ import 'package:swipeflick/core/utils/search_dictionary_helper.dart';
 import 'package:swipeflick/core/utils/security_helper.dart';
 import 'package:swipeflick/data/mock/mock_movies_data.dart';
 import 'package:swipeflick/core/widgets/cinema_snackbar.dart';
+import 'package:swipeflick/data/models/genre_model.dart';
+import 'package:swipeflick/data/models/room_model.dart';
 import 'package:swipeflick/data/services/tmdb_service.dart';
 import 'package:swipeflick/data/models/user_model.dart';
 import 'package:swipeflick/data/services/auth_service.dart';
@@ -15,11 +17,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.16.0');
-      expect(AppConstants.changeCounter, 17);
-      expect(AppConstants.appVersionDisplay, contains('v1.16.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #17'));
-      expect(AppConstants.changeLog.length, 18);
+      expect(AppConstants.appVersion, '1.17.0');
+      expect(AppConstants.changeCounter, 18);
+      expect(AppConstants.appVersionDisplay, contains('v1.17.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #18'));
+      expect(AppConstants.changeLog.length, 19);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -287,6 +289,43 @@ void main() {
       expect(CinemaSnackBar.defaultDuration.inSeconds, 5);
       final snack = CinemaSnackBar.create('Prueba de aviso cinemático');
       expect(snack.duration.inSeconds, 5);
+    });
+
+    test('GenreModel.fromJson enriquece géneros sin afiche con afiches y emojis verificados', () {
+      expect(GenreModel.defaultGenres.length, 19);
+      // Simular respuesta cruda de TMDB que no incluye sample_poster_url
+      final rawTmdbGenre = {'id': 28, 'name': 'Acción'};
+      final enriched = GenreModel.fromJson(rawTmdbGenre);
+
+      expect(enriched.id, 28);
+      expect(enriched.name, 'Acción');
+      expect(enriched.samplePosterUrl, isNotNull);
+      expect(enriched.samplePosterUrl, contains('image.tmdb.org'));
+      expect(enriched.emoji, '💥');
+    });
+
+    test('RoomModel soporta capacidad personalizada y switch de excludeMatches', () {
+      final room = RoomModel(
+        id: 'test-room-1',
+        code: 'ABC123',
+        hostId: 'host-1',
+        hostUsername: 'Host Cinefilo',
+        maxMembers: 14, // Personalizable
+        excludeMatches: true, // Considerar/excluir matches
+        createdAt: DateTime.now(),
+        expiresAt: DateTime.now().add(const Duration(minutes: 30)),
+      );
+
+      expect(room.maxMembers, 14);
+      expect(room.excludeMatches, true);
+
+      final json = room.toJson();
+      expect(json['max_members'], 14);
+      expect(json['exclude_matches'], true);
+
+      final reconstructed = RoomModel.fromJson(json);
+      expect(reconstructed.maxMembers, 14);
+      expect(reconstructed.excludeMatches, true);
     });
   });
 }

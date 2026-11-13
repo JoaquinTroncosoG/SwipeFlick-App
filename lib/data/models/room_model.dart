@@ -21,6 +21,7 @@ enum RoomStatus {
 class RoomMemberModel {
   final String id;
   final String userId;
+  final String email;
   final String username;
   final String avatarUrl;
   final bool isHost;
@@ -33,6 +34,7 @@ class RoomMemberModel {
   const RoomMemberModel({
     required this.id,
     required this.userId,
+    this.email = '',
     required this.username,
     required this.avatarUrl,
     this.isHost = false,
@@ -46,6 +48,7 @@ class RoomMemberModel {
   RoomMemberModel copyWith({
     String? id,
     String? userId,
+    String? email,
     String? username,
     String? avatarUrl,
     bool? isHost,
@@ -58,6 +61,7 @@ class RoomMemberModel {
     return RoomMemberModel(
       id: id ?? this.id,
       userId: userId ?? this.userId,
+      email: email ?? this.email,
       username: username ?? this.username,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       isHost: isHost ?? this.isHost,
@@ -73,6 +77,7 @@ class RoomMemberModel {
     return RoomMemberModel(
       id: json['id'] as String? ?? json['_id']?.toString() ?? '',
       userId: json['user_id'] as String? ?? json['userId'] as String? ?? '',
+      email: json['email'] as String? ?? '',
       username: json['username'] as String? ?? 'Invitado',
       avatarUrl: json['avatar_url'] as String? ?? json['avatarUrl'] as String? ?? 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
       isHost: json['is_host'] as bool? ?? json['isHost'] as bool? ?? false,
@@ -102,6 +107,7 @@ class RoomMemberModel {
     return {
       'id': id,
       'user_id': userId,
+      'email': email,
       'username': username,
       'avatar_url': avatarUrl,
       'is_host': isHost,
@@ -119,8 +125,9 @@ class RoomModel {
   final String code; // 6 dígitos alfanuméricos
   final String hostId;
   final String hostUsername;
-  final int maxMembers; // 2, 5, 10, 20
+  final int maxMembers; // Personalizable por el host (mínimo 2)
   final int matchThreshold; // 1 a 5 categorías necesarias para coincidir
+  final bool excludeMatches; // Considerar/excluir películas ya vistas o matches de los miembros
   final RoomStatus status;
   final RoomPhase phase;
   final List<RoomMemberModel> members;
@@ -140,6 +147,7 @@ class RoomModel {
     required this.hostUsername,
     this.maxMembers = 5,
     this.matchThreshold = 2,
+    this.excludeMatches = false,
     this.status = RoomStatus.waiting,
     this.phase = RoomPhase.lobby,
     this.members = const [],
@@ -162,6 +170,7 @@ class RoomModel {
     String? hostUsername,
     int? maxMembers,
     int? matchThreshold,
+    bool? excludeMatches,
     RoomStatus? status,
     RoomPhase? phase,
     List<RoomMemberModel>? members,
@@ -181,6 +190,7 @@ class RoomModel {
       hostUsername: hostUsername ?? this.hostUsername,
       maxMembers: maxMembers ?? this.maxMembers,
       matchThreshold: matchThreshold ?? this.matchThreshold,
+      excludeMatches: excludeMatches ?? this.excludeMatches,
       status: status ?? this.status,
       phase: phase ?? this.phase,
       members: members ?? this.members,
@@ -215,6 +225,7 @@ class RoomModel {
       hostUsername: json['host_username'] as String? ?? json['hostUsername'] as String? ?? 'Host',
       maxMembers: json['max_members'] as int? ?? json['maxMembers'] as int? ?? 5,
       matchThreshold: json['match_threshold'] as int? ?? json['matchThreshold'] as int? ?? 2,
+      excludeMatches: json['exclude_matches'] as bool? ?? json['excludeMatches'] as bool? ?? false,
       status: RoomStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => RoomStatus.waiting,
@@ -267,6 +278,7 @@ class RoomModel {
       'host_username': hostUsername,
       'max_members': maxMembers,
       'match_threshold': matchThreshold,
+      'exclude_matches': excludeMatches,
       'status': status.name,
       'phase': phase.name,
       'members': members.map((m) => m.toJson()).toList(),

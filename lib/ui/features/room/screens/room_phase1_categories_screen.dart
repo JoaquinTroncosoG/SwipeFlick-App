@@ -385,14 +385,25 @@ class _RoomPhase1CategoriesScreenState extends State<RoomPhase1CategoriesScreen>
         child: Stack(
           fit: StackFit.expand,
           children: [
-            if (genre.samplePosterUrl != null)
+            if (genre.samplePosterUrl != null && genre.samplePosterUrl!.isNotEmpty)
               CinemaImage(
                 imageUrl: genre.samplePosterUrl!,
                 fit: BoxFit.cover,
                 fallbackTitle: genre.name,
               )
             else
-              Container(color: AppColors.surfaceCard),
+              Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0xFF2B211D), Color(0xFF131118)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: Center(
+                  child: Text(genre.emoji, style: const TextStyle(fontSize: 72)),
+                ),
+              ),
 
             Container(decoration: const BoxDecoration(gradient: AppColors.posterGradient)),
 

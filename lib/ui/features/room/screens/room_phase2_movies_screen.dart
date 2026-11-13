@@ -11,6 +11,8 @@ import '../../../../core/widgets/swipe_card.dart';
 import '../../../../data/models/movie_model.dart';
 import '../../../../data/models/room_model.dart';
 import '../../../../data/services/auth_service.dart';
+import '../../../../data/services/favorites_service.dart';
+import '../../../../data/services/mongodb_service.dart';
 import '../../../../data/services/room_service.dart';
 import '../../../../data/services/tmdb_service.dart';
 import 'room_match_screen.dart';
@@ -50,7 +52,57 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
 
     // 2. Si no, generar la baraja y guardarla en la sala para sincronizar a todos los dispositivos
     final matchedGenreIds = room?.matchedCategories.map((c) => c.id).toList() ?? [];
-    final list = await tmdb.discoverMoviesByGenres(matchedGenreIds);
+    final pagesToFetch = (room?.excludeMatches ?? false) ? 4 : 3;
+    var list = await tmdb.discoverMoviesByGenres(matchedGenreIds, pages: pagesToFetch);
+
+    // 3. Si el host activó "Considerar películas matches?", filtrar las películas ya vistas / matches del grupo
+    if (room != null && room.excludeMatches) {
+      final excludedMovieIds = <int>{};
+
+      // A. Mi Lista y matches locales
+      try {
+        final favsService = context.read<FavoritesService>();
+        for (final m in favsService.favorites) {
+          excludedMovieIds.add(m.id);
+        }
+        for (final m in favsService.matchesHistory) {
+          excludedMovieIds.add(m.id);
+        }
+      } catch (_) {}
+
+      // B. Consultar favoritos y matches de cada miembro en MongoDB Atlas
+      try {
+        final mongo = context.read<MongoDbService>();
+        final memberEmails = room.members
+            .map((m) => m.email)
+            .where((e) => e.isNotEmpty)
+            .toSet();
+
+        for (final email in memberEmails) {
+          final cloudFavs = await mongo.getUserFavorites(email);
+          for (final f in cloudFavs) {
+            final mid = f['id'] as int? ?? int.tryParse(f['id'].toString());
+            if (mid != null) excludedMovieIds.add(mid);
+          }
+          final cloudMatches = await mongo.getUserMatchesHistory(email);
+          for (final m in cloudMatches) {
+            final mid = m['id'] as int? ?? int.tryParse(m['id'].toString());
+            if (mid != null) excludedMovieIds.add(mid);
+          }
+        }
+      } catch (e) {
+        debugPrint('[RoomPhase2] Error consultando listas de miembros: $e');
+      }
+
+      // Excluir de la baraja compartida
+      if (excludedMovieIds.isNotEmpty) {
+        final filteredList = list.where((m) => !excludedMovieIds.contains(m.id)).toList();
+        if (filteredList.isNotEmpty) {
+          list = filteredList;
+          debugPrint('[RoomPhase2] Excluidas ${excludedMovieIds.length} películas vistas/matches. Baraja final: ${list.length} películas.');
+        }
+      }
+    }
 
     if (room != null && list.isNotEmpty) {
       await roomService.setRoomMovieDeck(list);

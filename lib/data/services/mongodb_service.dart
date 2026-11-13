@@ -454,6 +454,7 @@ class MongoDbService extends ChangeNotifier {
           .set('host_username', room.hostUsername)
           .set('max_members', room.maxMembers)
           .set('match_threshold', room.matchThreshold)
+          .set('exclude_matches', room.excludeMatches)
           .set('status', room.status.name)
           .set('phase', room.phase.name)
           .set('members', data['members'])

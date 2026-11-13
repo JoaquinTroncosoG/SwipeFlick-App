@@ -116,6 +116,7 @@ class RoomService extends ChangeNotifier {
     required UserModel host,
     int maxMembers = 5,
     int matchThreshold = 2,
+    bool excludeMatches = false,
   }) async {
     final code = _generateRoomCode();
     final now = DateTime.now();
@@ -123,6 +124,7 @@ class RoomService extends ChangeNotifier {
     final hostMember = RoomMemberModel(
       id: _uuid.v4(),
       userId: host.id,
+      email: host.email,
       username: host.username,
       avatarUrl: host.avatarUrl,
       isHost: true,
@@ -138,6 +140,7 @@ class RoomService extends ChangeNotifier {
       hostUsername: host.username,
       maxMembers: maxMembers,
       matchThreshold: matchThreshold,
+      excludeMatches: excludeMatches,
       status: RoomStatus.waiting,
       phase: RoomPhase.lobby,
       members: [hostMember],
@@ -201,6 +204,7 @@ class RoomService extends ChangeNotifier {
       final newMember = RoomMemberModel(
         id: _uuid.v4(),
         userId: user.id,
+        email: user.email,
         username: user.username,
         avatarUrl: user.avatarUrl,
         isHost: false,

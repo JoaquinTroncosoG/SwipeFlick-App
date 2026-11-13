@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.16.0';
-  static const int changeCounter = 17;
-  static const String appVersionDisplay = 'v1.16.0 • Cambio #17';
+  static const String appVersion = '1.17.0';
+  static const int changeCounter = 18;
+  static const String appVersionDisplay = 'v1.17.0 • Cambio #18';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -96,6 +96,11 @@ class AppConstants {
       'version': '1.16.0 (Cambio #17)',
       'title': 'Catálogo Completo TMDB en Vivo & Avisos Emergentes Amarillos de 5 Segundos',
       'description': 'Conexión activa con el catálogo completo de TMDB (+800.000 títulos dinámicos en español con barajas de hasta 60 películas por combinación de géneros, tendencias y búsqueda en vivo); rediseño de avisos emergentes (CinemaSnackBar) con texto en color amarillo cinemático (#E8A849) y duración ampliada a 5 segundos completos para lectura cómoda.',
+    },
+    {
+      'version': '1.17.0 (Cambio #18)',
+      'title': 'Salas Personalizables, Filtro de Matches Vistas & Restauración de Afiches de Categorías',
+      'description': 'Capacidad máxima de sala personalizable de 2 a 50 participantes con selector interactivo y chips rápidos; nueva opción para el host "¿Considerar películas matches?" que analiza la biblioteca y matches de todos los miembros en la nube para omitir títulos ya vistos; resolución del bug de tarjetas de categorías enriqueciendo los 19 géneros de TMDB con sus afiches oficiales verificados; y simplificación de Perfil retirando el botón de iniciar sesión para dejar solo el cierre de sesión.',
     },
   ];
 

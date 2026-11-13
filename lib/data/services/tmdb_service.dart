@@ -64,7 +64,7 @@ class TmdbService {
       return GenreModel.defaultGenres;
     }
 
-    const cacheKey = '${_cachePrefix}genres';
+    const cacheKey = '${_cachePrefix}genres_v4';
     final cached = await _getFromCache(cacheKey);
     if (cached != null) {
       try {
