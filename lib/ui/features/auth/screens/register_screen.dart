@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_button.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/brevo_email_service.dart';
 import '../../../../data/services/favorites_service.dart';
@@ -306,10 +307,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     }
 
                     messenger.showSnackBar(
-                      const SnackBar(
-                        backgroundColor: AppColors.surfaceElevated,
-                        content: Text('¡Cuenta verificada y registrada en MongoDB Atlas con éxito! 🍿'),
-                        duration: Duration(seconds: 3),
+                      CinemaSnackBar.create(
+                        '¡Cuenta verificada y registrada en MongoDB Atlas con éxito! 🍿',
+                        duration: const Duration(seconds: 5),
                       ),
                     );
                     navigator.pushAndRemoveUntil(

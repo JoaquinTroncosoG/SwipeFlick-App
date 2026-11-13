@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/utils/search_dictionary_helper.dart';
@@ -13,6 +14,20 @@ class TmdbService {
   static const String _cachePrefix = 'tmdb_cache_';
   static const String _apiKeyPrefKey = 'tmdb_api_key_custom';
   static const Duration _cacheTtl = Duration(hours: 24);
+
+  /// Clave API predeterminada de TMDB obfuscada (XOR 0x3F) para habilitar el catálogo completo de películas
+  static String get defaultApiKey {
+    const fromEnv = String.fromEnvironment('TMDB_API_KEY', defaultValue: '');
+    if (fromEnv.isNotEmpty) return fromEnv;
+    try {
+      const xorBytes = [
+        11, 90, 11, 11, 91, 6, 15, 13, 6, 93, 14, 13, 8, 15, 94, 8, 10, 8, 92, 91, 91, 92, 8, 9, 9, 94, 14, 93, 92, 93, 9, 12
+      ];
+      return String.fromCharCodes(xorBytes.map((b) => b ^ 0x3F));
+    } catch (_) {
+      return '';
+    }
+  }
 
   String? _customApiKey;
 
@@ -32,11 +47,20 @@ class TmdbService {
   }
 
   String? get apiKey => _customApiKey;
-  bool get hasApiKey => _customApiKey != null && _customApiKey!.isNotEmpty;
+
+  String get effectiveApiKey {
+    if (_customApiKey != null && _customApiKey!.trim().isNotEmpty) {
+      return _customApiKey!.trim();
+    }
+    return defaultApiKey;
+  }
+
+  bool get hasApiKey => effectiveApiKey.isNotEmpty;
 
   /// Obtener lista de géneros/categorías (con cache de 24h)
   Future<List<GenreModel>> getGenres() async {
-    if (!hasApiKey) {
+    final key = effectiveApiKey;
+    if (key.isEmpty) {
       return GenreModel.defaultGenres;
     }
 
@@ -53,7 +77,7 @@ class TmdbService {
     }
 
     try {
-      final url = Uri.parse('$_baseUrl/genre/movie/list?language=es-ES&api_key=$_customApiKey');
+      final url = Uri.parse('$_baseUrl/genre/movie/list?language=es-ES&api_key=$key');
       final res = await http.get(url).timeout(const Duration(seconds: 5));
       if (res.statusCode == 200) {
         await _saveToCache(cacheKey, res.body);
@@ -67,92 +91,103 @@ class TmdbService {
     return GenreModel.defaultGenres;
   }
 
-  /// Obtener películas en tendencia (con cache de 24h)
-  Future<List<MovieModel>> getTrendingMovies() async {
-    if (!hasApiKey) {
+  /// Obtener películas en tendencia (con cache de 24h y paginación de hasta 40 películas)
+  Future<List<MovieModel>> getTrendingMovies({int pages = 2}) async {
+    final key = effectiveApiKey;
+    if (key.isEmpty) {
       return MockMoviesData.sampleMovies;
     }
 
-    const cacheKey = '${_cachePrefix}trending';
+    const cacheKey = '${_cachePrefix}trending_v4';
     final cached = await _getFromCache(cacheKey);
     if (cached != null) {
       try {
-        final decoded = jsonDecode(cached) as Map<String, dynamic>;
-        final list = (decoded['results'] as List)
-            .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
-            .toList();
-        return list;
+        final decoded = jsonDecode(cached) as List;
+        final list = decoded.map((m) => MovieModel.fromJson(m as Map<String, dynamic>)).toList();
+        if (list.isNotEmpty) return list;
       } catch (_) {}
     }
 
     try {
-      final url = Uri.parse('$_baseUrl/trending/movie/week?language=es-ES&api_key=$_customApiKey');
-      final res = await http.get(url).timeout(const Duration(seconds: 6));
-      if (res.statusCode == 200) {
-        await _saveToCache(cacheKey, res.body);
-        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-        return (decoded['results'] as List)
-            .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
-            .toList();
+      final List<MovieModel> accumulated = [];
+      for (int p = 1; p <= pages; p++) {
+        final url = Uri.parse('$_baseUrl/trending/movie/week?language=es-ES&page=$p&api_key=$key');
+        final res = await http.get(url).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+          final results = decoded['results'] as List? ?? [];
+          for (final item in results) {
+            final movie = MovieModel.fromJson(item as Map<String, dynamic>);
+            if (movie.posterUrl.isNotEmpty && !accumulated.any((m) => m.id == movie.id)) {
+              accumulated.add(movie);
+            }
+          }
+        }
       }
-    } catch (_) {}
+      if (accumulated.isNotEmpty) {
+        await _saveToCache(cacheKey, jsonEncode(accumulated.map((m) => m.toJson()).toList()));
+        return accumulated;
+      }
+    } catch (e) {
+      debugPrint('[TmdbService] Error al consultar trending de TMDB: $e');
+    }
 
     return MockMoviesData.sampleMovies;
   }
 
   /// Filtrar películas por géneros aprobados en el swipe
-  /// Garantiza que TODAS las películas devueltas contengan AL MENOS uno de los géneros ganadores
-  /// y descarta completamente las no coincidentes. Además, baraja la baraja para evitar
-  /// mostrar la misma ruleta fija cada vez.
-  Future<List<MovieModel>> discoverMoviesByGenres(List<int> genreIds) async {
+  /// Consulta el catálogo completo de TMDB (hasta 60 películas por combinación)
+  /// y garantiza que contengan al menos uno de los géneros ganadores con baraja dinámica.
+  Future<List<MovieModel>> discoverMoviesByGenres(List<int> genreIds, {int pages = 3}) async {
     if (genreIds.isEmpty) {
-      final all = List<MovieModel>.from(MockMoviesData.sampleMovies)..shuffle();
+      final trending = await getTrendingMovies();
+      final all = List<MovieModel>.from(trending)..shuffle();
       return all;
     }
 
-    if (!hasApiKey) {
-      // Filtrar estrictamente: solo películas que tengan al menos 1 género coincidente
-      final filtered = MockMoviesData.sampleMovies.where((movie) {
-        return movie.genreIds.any((id) => genreIds.contains(id));
-      }).toList();
-      filtered.shuffle();
-      return filtered;
-    }
-
-    final genresParam = genreIds.join('|'); // OR condition
-    final cacheKey = '${_cachePrefix}discover_$genresParam';
-    final cached = await _getFromCache(cacheKey);
-    if (cached != null) {
-      try {
-        final decoded = jsonDecode(cached) as Map<String, dynamic>;
-        final list = (decoded['results'] as List)
-            .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
-            .where((m) => m.genreIds.any((id) => genreIds.contains(id)))
-            .toList();
-        if (list.isNotEmpty) {
-          list.shuffle();
-          return list;
-        }
-      } catch (_) {}
-    }
-
-    try {
-      final url = Uri.parse(
-          '$_baseUrl/discover/movie?language=es-ES&sort_by=popularity.desc&include_adult=false&with_genres=$genresParam&api_key=$_customApiKey');
-      final res = await http.get(url).timeout(const Duration(seconds: 6));
-      if (res.statusCode == 200) {
-        await _saveToCache(cacheKey, res.body);
-        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
-        final list = (decoded['results'] as List)
-            .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
-            .where((m) => m.genreIds.any((id) => genreIds.contains(id)))
-            .toList();
-        if (list.isNotEmpty) {
-          list.shuffle();
-          return list;
-        }
+    final key = effectiveApiKey;
+    if (key.isNotEmpty) {
+      final genresParam = genreIds.join('|'); // OR condition
+      final cacheKey = '${_cachePrefix}discover_${genreIds.join("_")}_p$pages';
+      final cached = await _getFromCache(cacheKey);
+      if (cached != null) {
+        try {
+          final decoded = jsonDecode(cached) as List;
+          final list = decoded.map((m) => MovieModel.fromJson(m as Map<String, dynamic>)).toList();
+          if (list.isNotEmpty) {
+            list.shuffle();
+            return list;
+          }
+        } catch (_) {}
       }
-    } catch (_) {}
+
+      try {
+        final List<MovieModel> accumulated = [];
+        for (int p = 1; p <= pages; p++) {
+          final url = Uri.parse(
+            '$_baseUrl/discover/movie?language=es-ES&sort_by=popularity.desc&include_adult=false&with_genres=$genresParam&page=$p&api_key=$key',
+          );
+          final res = await http.get(url).timeout(const Duration(seconds: 5));
+          if (res.statusCode == 200) {
+            final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+            final results = decoded['results'] as List? ?? [];
+            for (final item in results) {
+              final movie = MovieModel.fromJson(item as Map<String, dynamic>);
+              if (movie.posterUrl.isNotEmpty && !accumulated.any((m) => m.id == movie.id)) {
+                accumulated.add(movie);
+              }
+            }
+          }
+        }
+        if (accumulated.isNotEmpty) {
+          await _saveToCache(cacheKey, jsonEncode(accumulated.map((m) => m.toJson()).toList()));
+          accumulated.shuffle();
+          return accumulated;
+        }
+      } catch (e) {
+        debugPrint('[TmdbService] Error al consultar discover de TMDB: $e');
+      }
+    }
 
     // Fallback estricto con baraja mock local
     final filtered = MockMoviesData.sampleMovies.where((movie) {
@@ -162,46 +197,65 @@ class TmdbService {
     return filtered;
   }
 
-  /// Buscar películas por texto o género utilizando el diccionario inteligente
-  /// Soporta faltas de acentos (ej: "accion", "ficcion"), términos populares ("miedo", "tiros", "scifi", "dibujos")
-  /// y búsquedas por título o sinopsis.
+  /// Buscar películas por texto o título utilizando el catálogo de TMDB
+  /// con fallback en el diccionario inteligente tolerante a acentos y sinónimos.
   Future<List<MovieModel>> searchMovies(String query) async {
-    if (query.trim().isEmpty) {
+    final clean = query.trim();
+    if (clean.isEmpty) {
       return getTrendingMovies();
+    }
+
+    final key = effectiveApiKey;
+    if (key.isNotEmpty) {
+      try {
+        final encoded = Uri.encodeComponent(clean);
+        final url = Uri.parse('$_baseUrl/search/movie?language=es-ES&query=$encoded&include_adult=false&api_key=$key');
+        final res = await http.get(url).timeout(const Duration(seconds: 5));
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+          final results = decoded['results'] as List? ?? [];
+          final list = results
+              .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
+              .where((m) => m.posterUrl.isNotEmpty)
+              .toList();
+          if (list.isNotEmpty) return list;
+        }
+      } catch (e) {
+        debugPrint('[TmdbService] Error en búsqueda TMDB: $e');
+      }
     }
 
     return SearchDictionaryHelper.searchMovies(
       catalog: MockMoviesData.sampleMovies,
-      query: query,
+      query: clean,
     );
   }
 
-  /// Obtener detalle completo de película (con append_to_response para optimización)
+  /// Obtener detalle completo de película (con streaming providers JustWatch y reviews)
   Future<MovieModel> getMovieDetails(int movieId) async {
-    // Buscar primero en mock
     final local = MockMoviesData.sampleMovies.cast<MovieModel?>().firstWhere(
           (m) => m?.id == movieId,
           orElse: () => null,
         );
 
-    if (!hasApiKey) {
+    final key = effectiveApiKey;
+    if (key.isEmpty) {
       if (local != null) return local;
       return MockMoviesData.sampleMovies.first;
     }
 
     try {
       final url = Uri.parse(
-          '$_baseUrl/movie/$movieId?language=es-ES&append_to_response=credits,reviews,watch/providers&api_key=$_customApiKey');
+          '$_baseUrl/movie/$movieId?language=es-ES&append_to_response=credits,reviews,watch/providers&api_key=$key');
       final res = await http.get(url).timeout(const Duration(seconds: 6));
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
-        
-        // Parsear providers
+
+        // Parsear providers JustWatch
         List<StreamingProviderModel> providers = [];
         final results = data['watch/providers']?['results'];
         if (results != null) {
-          // Intentar ES o US o MX
-          final countryData = results['ES'] ?? results['MX'] ?? results['US'] ?? results.values.firstOrNull;
+          final countryData = results['CL'] ?? results['ES'] ?? results['MX'] ?? results['US'] ?? results.values.firstOrNull;
           if (countryData != null && countryData['flatrate'] is List) {
             for (var p in countryData['flatrate']) {
               providers.add(StreamingProviderModel.fromJson(p as Map<String, dynamic>, type: 'flatrate'));
@@ -222,7 +276,9 @@ class TmdbService {
         );
         return movie;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('[TmdbService] Error al obtener detalles de película: $e');
+    }
 
     return local ?? MockMoviesData.sampleMovies.first;
   }

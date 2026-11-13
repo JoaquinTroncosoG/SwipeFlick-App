@@ -57,6 +57,8 @@ class MovieModel {
     return '${AppConstants.tmdbImageBaseUrl}$posterPath';
   }
 
+  String get posterUrl => fullPosterUrl;
+
   String get fullBackdropUrl {
     if (backdropPath == null || backdropPath!.isEmpty) {
       return fullPosterUrl;
@@ -64,6 +66,8 @@ class MovieModel {
     if (backdropPath!.startsWith('http')) return backdropPath!;
     return '${AppConstants.tmdbBackdropBaseUrl}$backdropPath';
   }
+
+  String get backdropUrl => fullBackdropUrl;
 
   factory MovieModel.fromJson(Map<String, dynamic> json) {
     // Géneros

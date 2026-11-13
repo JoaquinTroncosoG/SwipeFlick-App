@@ -4,6 +4,8 @@ import 'package:swipeflick/core/constants/app_constants.dart';
 import 'package:swipeflick/core/utils/search_dictionary_helper.dart';
 import 'package:swipeflick/core/utils/security_helper.dart';
 import 'package:swipeflick/data/mock/mock_movies_data.dart';
+import 'package:swipeflick/core/widgets/cinema_snackbar.dart';
+import 'package:swipeflick/data/services/tmdb_service.dart';
 import 'package:swipeflick/data/models/user_model.dart';
 import 'package:swipeflick/data/services/auth_service.dart';
 import 'package:swipeflick/data/services/brevo_email_service.dart';
@@ -13,11 +15,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.15.0');
-      expect(AppConstants.changeCounter, 16);
-      expect(AppConstants.appVersionDisplay, contains('v1.15.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #16'));
-      expect(AppConstants.changeLog.length, 17);
+      expect(AppConstants.appVersion, '1.16.0');
+      expect(AppConstants.changeCounter, 17);
+      expect(AppConstants.appVersionDisplay, contains('v1.16.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #17'));
+      expect(AppConstants.changeLog.length, 18);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -269,6 +271,22 @@ void main() {
         code: '987654',
       );
       expect(sent, isTrue);
+    });
+
+    test('TmdbService tiene clave de TMDB activa y catálogo en vivo habilitado por defecto', () async {
+      SharedPreferences.setMockInitialValues({});
+      final tmdb = TmdbService();
+      await tmdb.init();
+
+      expect(TmdbService.defaultApiKey.isNotEmpty, true);
+      expect(tmdb.effectiveApiKey.isNotEmpty, true);
+      expect(tmdb.hasApiKey, true);
+    });
+
+    test('CinemaSnackBar está configurado con 5 segundos de duración por defecto', () {
+      expect(CinemaSnackBar.defaultDuration.inSeconds, 5);
+      final snack = CinemaSnackBar.create('Prueba de aviso cinemático');
+      expect(snack.duration.inSeconds, 5);
     });
   });
 }

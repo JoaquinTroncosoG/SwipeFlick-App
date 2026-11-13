@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/utils/security_helper.dart';
 import '../../../../core/widgets/cinema_button.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/mongodb_service.dart';
@@ -115,10 +116,9 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (mounted) {
         messenger.showSnackBar(
-          const SnackBar(
-            backgroundColor: AppColors.surfaceElevated,
-            content: Text('¡Bienvenido de nuevo! 🎬'),
-            duration: Duration(seconds: 2),
+          CinemaSnackBar.create(
+            '¡Bienvenido de nuevo! 🎬',
+            duration: const Duration(seconds: 5),
           ),
         );
         if (Navigator.of(context).canPop()) {

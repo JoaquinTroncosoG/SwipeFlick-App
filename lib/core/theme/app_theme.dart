@@ -91,6 +91,21 @@ class AppTheme {
         type: BottomNavigationBarType.fixed,
         elevation: 8,
       ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: AppColors.surfaceElevated,
+        contentTextStyle: const TextStyle(
+          color: AppColors.accent,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
+        actionTextColor: AppColors.accentHover,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: const BorderSide(color: AppColors.accent, width: 1.2),
+        ),
+        behavior: SnackBarBehavior.floating,
+        elevation: 6,
+      ),
     );
   }
 }

@@ -8,6 +8,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_avatar.dart';
 import '../../../../core/widgets/cinema_button.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/brevo_email_service.dart';
 import '../../../../data/services/favorites_service.dart';
@@ -130,23 +131,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                                 avatarUrl: base64Image,
                               );
                             }
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                backgroundColor: AppColors.surfaceElevated,
-                                content: Text('¡Foto de perfil actualizada y visible en tus salas! 📸'),
-                                duration: Duration(seconds: 2),
-                              ),
+                            CinemaSnackBar.show(
+                              context,
+                              '¡Foto de perfil actualizada y visible en tus salas! 📸',
+                              duration: const Duration(seconds: 5),
                             );
                           }
                         }
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              backgroundColor: AppColors.error,
-                              content: Text('No se pudo acceder a la galería: $e'),
-                              duration: const Duration(seconds: 3),
-                            ),
+                          CinemaSnackBar.show(
+                            context,
+                            'No se pudo acceder a la galería: $e',
+                            duration: const Duration(seconds: 5),
                           );
                         }
                       }
@@ -182,12 +179,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                               }
                             }
                             Navigator.of(ctx).pop();
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: AppColors.surfaceElevated,
-                                content: Text('Foto de perfil actualizada a ${item['name']}'),
-                                duration: const Duration(seconds: 2),
-                              ),
+                            CinemaSnackBar.show(
+                              context,
+                              'Foto de perfil actualizada a ${item['name']}',
+                              duration: const Duration(seconds: 5),
                             );
                           },
                           child: Column(
@@ -1433,12 +1428,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   }
                   await auth.signOut();
                   if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        duration: Duration(seconds: 2),
-                        backgroundColor: AppColors.surfaceElevated,
-                        content: Text('Sesión cerrada con éxito. ¡Hasta pronto! 👋'),
-                      ),
+                    CinemaSnackBar.show(
+                      context,
+                      'Sesión cerrada con éxito. ¡Hasta pronto! 👋',
+                      duration: const Duration(seconds: 5),
                     );
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute(builder: (_) => const LoginScreen()),

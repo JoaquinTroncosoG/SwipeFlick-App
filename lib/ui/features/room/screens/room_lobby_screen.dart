@@ -5,6 +5,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_avatar.dart';
 import '../../../../core/widgets/cinema_button.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../data/models/room_model.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/room_service.dart';
@@ -75,12 +76,10 @@ class RoomLobbyScreen extends StatelessWidget {
         if (!context.mounted) return;
         roomService.resetRoomClosedFlag();
         Navigator.of(context).popUntil((route) => route.isFirst);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: AppColors.surfaceElevated,
-            content: Text('📢 La sala ha sido cerrada por el anfitrión.'),
-            duration: Duration(seconds: 4),
-          ),
+        CinemaSnackBar.show(
+          context,
+          '📢 La sala ha sido cerrada por el anfitrión.',
+          duration: const Duration(seconds: 5),
         );
       });
       return const Scaffold(
@@ -201,12 +200,10 @@ class RoomLobbyScreen extends StatelessWidget {
                           icon: const Icon(Icons.copy_rounded, color: AppColors.accent, size: 22),
                           onPressed: () {
                             Clipboard.setData(ClipboardData(text: room.code));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                duration: Duration(seconds: 1),
-                                backgroundColor: AppColors.surfaceElevated,
-                                content: Text('¡Código copiado al portapapeles!'),
-                              ),
+                            CinemaSnackBar.show(
+                              context,
+                              '¡Código copiado al portapapeles! 📋',
+                              duration: const Duration(seconds: 5),
                             );
                           },
                         ),

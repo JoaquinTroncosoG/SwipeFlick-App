@@ -66,10 +66,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // Búsqueda inteligente: detección de género por sinónimos + normalización diacrítica
     final detectedGenre = _searchQuery.isEmpty ? null : SearchDictionaryHelper.detectGenre(_searchQuery);
+    final combinedCatalog = [
+      ..._trendingMovies,
+      ...MockMoviesData.sampleMovies.where((m) => !_trendingMovies.any((tm) => tm.id == m.id)),
+    ];
     final displayedMovies = _searchQuery.isEmpty
         ? _trendingMovies
         : SearchDictionaryHelper.searchMovies(
-            catalog: MockMoviesData.sampleMovies,
+            catalog: combinedCatalog,
             query: _searchQuery,
           );
 

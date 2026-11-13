@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.15.0';
-  static const int changeCounter = 16;
-  static const String appVersionDisplay = 'v1.15.0 • Cambio #16';
+  static const String appVersion = '1.16.0';
+  static const int changeCounter = 17;
+  static const String appVersionDisplay = 'v1.16.0 • Cambio #17';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -91,6 +91,11 @@ class AppConstants {
       'version': '1.15.0 (Cambio #16)',
       'title': 'Salida Dinámica de Salas, Avatares Fotográficos en Vivo & Biblioteca en la Nube',
       'description': 'Sincronización de abandono y cierre de salas en MongoDB Atlas (el anfitrión ve salir a participantes y los invitados son devueltos con aviso si la sala cierra); soporte universal de avatares fotográficos de galería (Base64) visibles en todas las pantallas de sala; y persistencia de Mi Lista en MongoDB Atlas sin películas mock para cuentas nuevas.',
+    },
+    {
+      'version': '1.16.0 (Cambio #17)',
+      'title': 'Catálogo Completo TMDB en Vivo & Avisos Emergentes Amarillos de 5 Segundos',
+      'description': 'Conexión activa con el catálogo completo de TMDB (+800.000 títulos dinámicos en español con barajas de hasta 60 películas por combinación de géneros, tendencias y búsqueda en vivo); rediseño de avisos emergentes (CinemaSnackBar) con texto en color amarillo cinemático (#E8A849) y duración ampliada a 5 segundos completos para lectura cómoda.',
     },
   ];
 

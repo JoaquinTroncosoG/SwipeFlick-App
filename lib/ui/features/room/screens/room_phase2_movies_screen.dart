@@ -5,6 +5,7 @@ import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_avatar.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_image.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../core/widgets/rating_badge.dart';
 import '../../../../core/widgets/swipe_card.dart';
 import '../../../../data/models/movie_model.dart';
@@ -144,12 +145,10 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
         if (!context.mounted) return;
         roomService.resetRoomClosedFlag();
         Navigator.of(context).popUntil((route) => route.isFirst);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            backgroundColor: AppColors.surfaceElevated,
-            content: Text('📢 La sala ha sido cerrada por el anfitrión.'),
-            duration: Duration(seconds: 4),
-          ),
+        CinemaSnackBar.show(
+          context,
+          '📢 La sala ha sido cerrada por el anfitrión.',
+          duration: const Duration(seconds: 5),
         );
       });
       return const Scaffold(
