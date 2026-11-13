@@ -1,12 +1,16 @@
 # ==========================================
 # STAGE 1: Compilación de Flutter Web
 # ==========================================
-FROM ghcr.io/cirruslabs/flutter:3.24.5 AS build-env
+FROM ghcr.io/cirruslabs/flutter:stable AS build-env
 
 WORKDIR /app
 
+# Desactivar telemetría y habilitar soporte web
+RUN flutter config --no-analytics && \
+    flutter config --enable-web
+
 # Cachear dependencias de Flutter
-COPY pubspec.yaml pubspec.lock ./
+COPY pubspec.yaml ./
 RUN flutter pub get
 
 # Copiar el código fuente del proyecto

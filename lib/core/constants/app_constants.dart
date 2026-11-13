@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.8.0';
-  static const int changeCounter = 9;
-  static const String appVersionDisplay = 'v1.8.0 • Cambio #9';
+  static const String appVersion = '1.9.0';
+  static const int changeCounter = 10;
+  static const String appVersionDisplay = 'v1.9.0 • Cambio #10';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -56,6 +56,11 @@ class AppConstants {
       'version': '1.8.0 (Cambio #9)',
       'title': 'Despliegue en la Nube con Render (Docker, Blueprint & Variables de Entorno)',
       'description': 'Configuración de producción para Render Cloud (Dockerfile multi-etapa, NGINX / Cloud Server, render.yaml), verificación de variables de entorno (MONGODB_URI, BREVO_API_KEY) y logs de diagnóstico en consola.',
+    },
+    {
+      'version': '1.9.0 (Cambio #10)',
+      'title': 'Compatibilidad Multi-SDK y Despliegue Render con Flutter Stable',
+      'description': 'Resolución de incompatibilidad de SDK en compilación Docker (flexibilización sdk: >=3.5.0 <4.0.0), actualización a imagen base ghcr.io/cirruslabs/flutter:stable y desacoplamiento de pubspec.lock para resolución limpia de dependencias en Render.',
     },
   ];
 
