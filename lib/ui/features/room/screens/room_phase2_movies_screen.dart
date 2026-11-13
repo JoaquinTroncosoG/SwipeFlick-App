@@ -37,8 +37,22 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
     final room = roomService.currentRoom;
     final tmdb = context.read<TmdbService>();
 
+    // 1. Si la sala ya tiene la baraja compartida sincronizada en Atlas, usarla para que todos vean la misma secuencia
+    if (room != null && room.movieDeck.isNotEmpty) {
+      setState(() {
+        _movies = room.movieDeck;
+        _isLoading = false;
+      });
+      return;
+    }
+
+    // 2. Si no, generar la baraja y guardarla en la sala para sincronizar a todos los dispositivos
     final matchedGenreIds = room?.matchedCategories.map((c) => c.id).toList() ?? [];
     final list = await tmdb.discoverMoviesByGenres(matchedGenreIds);
+
+    if (room != null && list.isNotEmpty) {
+      await roomService.setRoomMovieDeck(list);
+    }
 
     setState(() {
       _movies = list;
@@ -71,6 +85,11 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
   Widget build(BuildContext context) {
     final roomService = context.watch<RoomService>();
     final room = roomService.currentRoom;
+
+    if (room != null && _movies.isEmpty && room.movieDeck.isNotEmpty) {
+      _movies = room.movieDeck;
+      _isLoading = false;
+    }
 
     // Si ya hay resultado (match o randomizer), navegar
     if (room != null && room.phase == RoomPhase.result && room.matchedMovie != null) {

@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../models/genre_model.dart';
+import '../models/movie_model.dart';
 import '../models/room_model.dart';
 import '../../core/utils/security_helper.dart';
 
@@ -445,30 +447,155 @@ class MongoDbService extends ChangeNotifier {
     try {
       final collection = _db!.collection('rooms');
       final data = room.toJson();
+      final modifier = modify
+          .set('id', room.id)
+          .set('code', room.code)
+          .set('host_id', room.hostId)
+          .set('host_username', room.hostUsername)
+          .set('max_members', room.maxMembers)
+          .set('match_threshold', room.matchThreshold)
+          .set('status', room.status.name)
+          .set('phase', room.phase.name)
+          .set('members', data['members'])
+          .set('matched_categories', data['matched_categories'])
+          .set('matched_movie', data['matched_movie'])
+          .set('is_randomizer_result', room.isRandomizerResult)
+          .set('created_at', room.createdAt.toIso8601String())
+          .set('expires_at', room.expiresAt.toIso8601String())
+          .set('updated_at', DateTime.now().toIso8601String());
+
+      if (data['movie_deck'] != null && (data['movie_deck'] as List).isNotEmpty) {
+        modifier.set('movie_deck', data['movie_deck']);
+      }
+      if (data['category_likes'] != null && (data['category_likes'] as Map).isNotEmpty) {
+        modifier.set('category_likes', data['category_likes']);
+      }
+      if (data['movie_likes'] != null && (data['movie_likes'] as Map).isNotEmpty) {
+        modifier.set('movie_likes', data['movie_likes']);
+      }
+
       await collection.updateOne(
         where.eq('code', room.code),
-        modify
-            .set('id', room.id)
-            .set('code', room.code)
-            .set('host_id', room.hostId)
-            .set('host_username', room.hostUsername)
-            .set('max_members', room.maxMembers)
-            .set('match_threshold', room.matchThreshold)
-            .set('status', room.status.name)
-            .set('phase', room.phase.name)
-            .set('members', data['members'])
-            .set('matched_categories', data['matched_categories'])
-            .set('matched_movie', data['matched_movie'])
-            .set('is_randomizer_result', room.isRandomizerResult)
-            .set('created_at', room.createdAt.toIso8601String())
-            .set('expires_at', room.expiresAt.toIso8601String())
-            .set('updated_at', DateTime.now().toIso8601String()),
+        modifier,
         upsert: true,
       );
       debugPrint('[MongoDB] Sala ${room.code} sincronizada exitosamente en Atlas.');
       return true;
     } catch (e) {
       debugPrint('[MongoDB] Error al guardar sala en Atlas: $e');
+      return false;
+    }
+  }
+
+  /// Registrar atómicamente el like/voto de categoría de un usuario en Atlas sin sobreescrituras
+  Future<bool> castRoomCategoryVote({
+    required String roomCode,
+    required String userId,
+    required int genreId,
+    required bool approved,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+      final modifier = approved
+          ? modify.addToSet('category_likes.$genreId', userId)
+          : modify.pull('category_likes.$genreId', userId);
+      await collection.updateOne(where.eq('code', cleanCode), modifier);
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al registrar voto atómico de categoría: $e');
+      return false;
+    }
+  }
+
+  /// Registrar atómicamente el like/voto de película de un usuario en Atlas sin sobreescrituras
+  Future<bool> castRoomMovieVote({
+    required String roomCode,
+    required String userId,
+    required int movieId,
+    required bool approved,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+      final modifier = approved
+          ? modify.addToSet('movie_likes.$movieId', userId)
+          : modify.pull('movie_likes.$movieId', userId);
+      await collection.updateOne(where.eq('code', cleanCode), modifier);
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al registrar voto atómico de película: $e');
+      return false;
+    }
+  }
+
+  /// Guarda la baraja compartida de películas para que todos los dispositivos vean exactamente la misma lista
+  Future<bool> setRoomMovieDeck({
+    required String roomCode,
+    required List<MovieModel> deck,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+      await collection.updateOne(
+        where.eq('code', cleanCode),
+        modify.set('movie_deck', deck.map((m) => m.toJson()).toList()),
+      );
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al guardar movie_deck: $e');
+      return false;
+    }
+  }
+
+  /// Actualiza la fase de la sala y los resultados en MongoDB Atlas
+  Future<bool> updateRoomPhase({
+    required String roomCode,
+    required RoomPhase phase,
+    List<GenreModel>? matchedCategories,
+    MovieModel? matchedMovie,
+    bool isRandomizer = false,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+      var modifier = modify
+          .set('phase', phase.name)
+          .set('updated_at', DateTime.now().toIso8601String());
+
+      if (matchedCategories != null && matchedCategories.isNotEmpty) {
+        modifier = modifier.set(
+          'matched_categories',
+          matchedCategories.map((c) => c.toJson()).toList(),
+        );
+      }
+      if (matchedMovie != null) {
+        modifier = modifier
+            .set('matched_movie', matchedMovie.toJson())
+            .set('is_randomizer_result', isRandomizer)
+            .set('status', RoomStatus.completed.name);
+      }
+
+      await collection.updateOne(where.eq('code', cleanCode), modifier);
+      return true;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al actualizar fase de sala: $e');
       return false;
     }
   }

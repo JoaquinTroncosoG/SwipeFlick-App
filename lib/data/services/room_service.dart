@@ -35,45 +35,59 @@ class RoomService extends ChangeNotifier {
     );
   }
 
-  /// Inicia el polling de sincronización en tiempo real desde MongoDB Atlas
+  /// Inicia el polling de sincronización en tiempo real desde MongoDB Atlas (cada 1500 ms)
   void _startSyncTimer() {
     _syncTimer?.cancel();
-    _syncTimer = Timer.periodic(const Duration(seconds: 2), (_) async {
+    _syncTimer = Timer.periodic(const Duration(milliseconds: 1500), (_) async {
       await _syncFromDatabase();
     });
   }
 
-  /// Sincroniza el estado más reciente de la sala desde MongoDB Atlas
+  /// Sincroniza el estado más reciente de la sala desde MongoDB Atlas y evalúa coincidencias
   Future<void> _syncFromDatabase() async {
     if (_currentRoom == null || _mongoService == null) return;
     try {
       final remoteRoom = await _mongoService!.getRoomByCode(_currentRoom!.code);
       if (remoteRoom == null) return;
 
-      bool hasChanges = false;
-      if (remoteRoom.members.length != _currentRoom!.members.length ||
-          remoteRoom.phase != _currentRoom!.phase ||
+      // Fusionar categoryLikes (likes locales + likes remotos de Atlas)
+      final mergedCategoryLikes = Map<int, List<String>>.from(remoteRoom.categoryLikes);
+      _currentRoom!.categoryLikes.forEach((genreId, localLikers) {
+        final existing = mergedCategoryLikes[genreId] ?? [];
+        final set = {...existing, ...localLikers};
+        mergedCategoryLikes[genreId] = set.toList();
+      });
+
+      // Fusionar movieLikes (likes locales + likes remotos de Atlas)
+      final mergedMovieLikes = Map<int, List<String>>.from(remoteRoom.movieLikes);
+      _currentRoom!.movieLikes.forEach((movieId, localLikers) {
+        final existing = mergedMovieLikes[movieId] ?? [];
+        final set = {...existing, ...localLikers};
+        mergedMovieLikes[movieId] = set.toList();
+      });
+
+      bool hasChanges = remoteRoom.phase != _currentRoom!.phase ||
           remoteRoom.status != _currentRoom!.status ||
+          remoteRoom.members.length != _currentRoom!.members.length ||
           remoteRoom.matchedCategories.length != _currentRoom!.matchedCategories.length ||
-          remoteRoom.matchedMovie?.id != _currentRoom!.matchedMovie?.id) {
-        hasChanges = true;
-      } else {
-        // Verificar si algún participante actualizó votos
-        for (final rm in remoteRoom.members) {
-          final lm = _currentRoom!.members.firstWhere(
-            (m) => m.userId == rm.userId,
-            orElse: () => rm,
-          );
-          if (rm.categoryVotes.length != lm.categoryVotes.length ||
-              rm.movieVotes.length != lm.movieVotes.length) {
-            hasChanges = true;
-            break;
-          }
-        }
+          remoteRoom.matchedMovie?.id != _currentRoom!.matchedMovie?.id ||
+          mergedCategoryLikes.toString() != _currentRoom!.categoryLikes.toString() ||
+          mergedMovieLikes.toString() != _currentRoom!.movieLikes.toString();
+
+      _currentRoom = remoteRoom.copyWith(
+        categoryLikes: mergedCategoryLikes,
+        movieLikes: mergedMovieLikes,
+        movieDeck: remoteRoom.movieDeck.isNotEmpty ? remoteRoom.movieDeck : _currentRoom!.movieDeck,
+      );
+
+      // Evaluar consensos con los nuevos votos sincronizados desde Atlas
+      if (_currentRoom!.phase == RoomPhase.categories) {
+        _evaluateCategoryConsensus(GenreModel.defaultGenres);
+      } else if (_currentRoom!.phase == RoomPhase.movies && _currentRoom!.movieDeck.isNotEmpty) {
+        _evaluateMovieConsensus(_currentRoom!.movieDeck);
       }
 
       if (hasChanges) {
-        _currentRoom = remoteRoom;
         notifyListeners();
       }
     } catch (e) {
@@ -236,13 +250,29 @@ class RoomService extends ChangeNotifier {
     );
 
     if (_mongoService != null) {
-      await _mongoService!.saveRoom(_currentRoom!);
+      await _mongoService!.updateRoomPhase(
+        roomCode: _currentRoom!.code,
+        phase: RoomPhase.categories,
+      );
     }
 
     notifyListeners();
   }
 
-  /// Registrar voto real de categoría de un usuario
+  /// Guarda y sincroniza la baraja compartida de películas para todos los participantes
+  Future<void> setRoomMovieDeck(List<MovieModel> deck) async {
+    if (_currentRoom == null || deck.isEmpty) return;
+    _currentRoom = _currentRoom!.copyWith(movieDeck: deck);
+    if (_mongoService != null) {
+      await _mongoService!.setRoomMovieDeck(
+        roomCode: _currentRoom!.code,
+        deck: deck,
+      );
+    }
+    notifyListeners();
+  }
+
+  /// Registrar voto real de categoría de un usuario (Atómico en Atlas)
   Future<void> castCategoryVote({
     required String userId,
     required int genreId,
@@ -251,7 +281,17 @@ class RoomService extends ChangeNotifier {
   }) async {
     if (_currentRoom == null) return;
 
-    // Actualizar voto del usuario
+    // 1. Actualizar mapa local de categoryLikes
+    final updatedCategoryLikes = Map<int, List<String>>.from(_currentRoom!.categoryLikes);
+    final currentLikes = List<String>.from(updatedCategoryLikes[genreId] ?? []);
+    if (approved) {
+      if (!currentLikes.contains(userId)) currentLikes.add(userId);
+    } else {
+      currentLikes.remove(userId);
+    }
+    updatedCategoryLikes[genreId] = currentLikes;
+
+    // Actualizar también en el miembro
     final updatedMembers = _currentRoom!.members.map((member) {
       if (member.userId == userId) {
         final updatedVotes = Map<int, bool>.from(member.categoryVotes);
@@ -261,42 +301,69 @@ class RoomService extends ChangeNotifier {
       return member;
     }).toList();
 
-    _currentRoom = _currentRoom!.copyWith(members: updatedMembers);
+    _currentRoom = _currentRoom!.copyWith(
+      categoryLikes: updatedCategoryLikes,
+      members: updatedMembers,
+    );
 
-    // Evaluar si se alcanzó la meta de categorías entre los miembros conectados
-    _checkCategoryMatching(allAvailableGenres);
-
-    // Guardar en Atlas para que el resto de participantes lo reciba
+    // 2. Enviar actualización atómica a MongoDB Atlas sin sobreescribir otros miembros
     if (_mongoService != null) {
-      await _mongoService!.saveRoom(_currentRoom!);
+      _mongoService!.castRoomCategoryVote(
+        roomCode: _currentRoom!.code,
+        userId: userId,
+        genreId: genreId,
+        approved: approved,
+      );
     }
+
+    // 3. Evaluar si se alcanzó la meta de categorías coincidentes
+    _evaluateCategoryConsensus(allAvailableGenres);
 
     notifyListeners();
   }
 
   /// Evaluar coincidencia de categorías entre todos los miembros
-  void _checkCategoryMatching(List<GenreModel> allGenres) {
+  void _evaluateCategoryConsensus(List<GenreModel> allGenres) {
     if (_currentRoom == null) return;
+    if (_currentRoom!.phase != RoomPhase.categories) return;
 
     final members = _currentRoom!.members;
     if (members.length < 2) return;
 
-    // Encontrar categorías aprobadas por TODOS los miembros reales
-    List<GenreModel> matched = [];
+    final memberIds = members.map((m) => m.userId).toSet();
+    final matched = <GenreModel>[];
+
     for (final genre in allGenres) {
-      final allApproved = members.every((m) => m.categoryVotes[genre.id] == true);
-      if (allApproved) {
+      // Verificar si el género fue aprobado en categoryLikes por todos los participantes
+      final likers = _currentRoom!.categoryLikes[genre.id] ?? [];
+      final likersSet = likers.toSet();
+
+      // Compatibilidad con member.categoryVotes
+      final allApprovedInMembers = members.every((m) => m.categoryVotes[genre.id] == true);
+      final allApprovedInLikes = memberIds.every((id) => likersSet.contains(id));
+
+      if (allApprovedInLikes || allApprovedInMembers) {
         matched.add(genre);
       }
     }
 
     // Si alcanzamos el matchThreshold de categorías configurado
     if (matched.length >= _currentRoom!.matchThreshold) {
+      debugPrint('[RoomService] ¡COINCIDENCIA DE CATEGORÍAS ALCANZADA! (${matched.length}): ${matched.map((g) => g.name).join(", ")}');
       _currentRoom = _currentRoom!.copyWith(
         matchedCategories: matched,
         status: RoomStatus.categories,
         phase: RoomPhase.categoryMatch,
       );
+
+      if (_mongoService != null) {
+        _mongoService!.updateRoomPhase(
+          roomCode: _currentRoom!.code,
+          phase: RoomPhase.categoryMatch,
+          matchedCategories: matched,
+        );
+      }
+      notifyListeners();
     }
   }
 
@@ -315,7 +382,11 @@ class RoomService extends ChangeNotifier {
     );
 
     if (_mongoService != null) {
-      await _mongoService!.saveRoom(_currentRoom!);
+      await _mongoService!.updateRoomPhase(
+        roomCode: _currentRoom!.code,
+        phase: RoomPhase.categoryMatch,
+        matchedCategories: cats,
+      );
     }
 
     notifyListeners();
@@ -331,13 +402,16 @@ class RoomService extends ChangeNotifier {
     );
 
     if (_mongoService != null) {
-      await _mongoService!.saveRoom(_currentRoom!);
+      await _mongoService!.updateRoomPhase(
+        roomCode: _currentRoom!.code,
+        phase: RoomPhase.movies,
+      );
     }
 
     notifyListeners();
   }
 
-  /// Registrar voto real de película de un usuario en Fase 2
+  /// Registrar voto real de película de un usuario en Fase 2 (Atómico en Atlas)
   Future<void> castMovieVote({
     required String userId,
     required MovieModel movie,
@@ -345,6 +419,16 @@ class RoomService extends ChangeNotifier {
     required List<MovieModel> roomDeck,
   }) async {
     if (_currentRoom == null) return;
+
+    // 1. Actualizar mapa local de movieLikes
+    final updatedMovieLikes = Map<int, List<String>>.from(_currentRoom!.movieLikes);
+    final currentLikes = List<String>.from(updatedMovieLikes[movie.id] ?? []);
+    if (approved) {
+      if (!currentLikes.contains(userId)) currentLikes.add(userId);
+    } else {
+      currentLikes.remove(userId);
+    }
+    updatedMovieLikes[movie.id] = currentLikes;
 
     final updatedMembers = _currentRoom!.members.map((member) {
       if (member.userId == userId) {
@@ -355,43 +439,73 @@ class RoomService extends ChangeNotifier {
       return member;
     }).toList();
 
-    _currentRoom = _currentRoom!.copyWith(members: updatedMembers);
+    _currentRoom = _currentRoom!.copyWith(
+      movieLikes: updatedMovieLikes,
+      members: updatedMembers,
+    );
 
-    // Verificar si TODOS los miembros aprobaron esta película -> MATCH!
-    _checkMovieConsensus(movie, roomDeck);
-
-    // Guardar en Atlas
+    // 2. Registrar atómicamente en Atlas sin colisiones
     if (_mongoService != null) {
-      await _mongoService!.saveRoom(_currentRoom!);
+      _mongoService!.castRoomMovieVote(
+        roomCode: _currentRoom!.code,
+        userId: userId,
+        movieId: movie.id,
+        approved: approved,
+      );
     }
+
+    // 3. Evaluar si todos los miembros aprobaron esta película
+    _evaluateMovieConsensus(roomDeck);
 
     notifyListeners();
   }
 
   /// Verificar si todos los miembros aprobaron la misma película
-  void _checkMovieConsensus(MovieModel currentMovie, List<MovieModel> roomDeck) {
+  void _evaluateMovieConsensus(List<MovieModel> roomDeck) {
     if (_currentRoom == null) return;
-    final members = _currentRoom!.members;
+    if (_currentRoom!.phase != RoomPhase.movies) return;
 
-    // Verificar si TODOS votaron 'true' para currentMovie
-    final allApprovedCurrent = members.every((m) => m.movieVotes[currentMovie.id] == true);
-    if (allApprovedCurrent) {
-      _currentRoom = _currentRoom!.copyWith(
-        matchedMovie: currentMovie,
-        isRandomizerResult: false,
-        status: RoomStatus.completed,
-        phase: RoomPhase.result,
-      );
-      return;
+    final members = _currentRoom!.members;
+    if (members.length < 2) return;
+
+    final memberIds = members.map((m) => m.userId).toSet();
+
+    // 1. Comprobar si TODOS los miembros dieron like a alguna película
+    for (final movie in roomDeck) {
+      final likers = _currentRoom!.movieLikes[movie.id] ?? [];
+      final likersSet = likers.toSet();
+
+      final allApprovedInLikes = memberIds.every((id) => likersSet.contains(id));
+      final allApprovedInMembers = members.every((m) => m.movieVotes[movie.id] == true);
+
+      if (allApprovedInLikes || allApprovedInMembers) {
+        debugPrint('[RoomService] ¡MATCH UNÁNIME DE PELÍCULA ENCONTRADO! ${movie.title}');
+        _currentRoom = _currentRoom!.copyWith(
+          matchedMovie: movie,
+          isRandomizerResult: false,
+          status: RoomStatus.completed,
+          phase: RoomPhase.result,
+        );
+
+        if (_mongoService != null) {
+          _mongoService!.updateRoomPhase(
+            roomCode: _currentRoom!.code,
+            phase: RoomPhase.result,
+            matchedMovie: movie,
+            isRandomizer: false,
+          );
+        }
+        notifyListeners();
+        return;
+      }
     }
 
-    // Verificar si se agotó la baraja para todos
+    // 2. Si todos los miembros votaron todas las películas del deck y no hubo coincidencia, fallback
     final allVotedAllMovies = members.every(
       (m) => roomDeck.every((movie) => m.movieVotes.containsKey(movie.id)),
     );
 
     if (allVotedAllMovies) {
-      // Activar Randomizer Fallback!
       triggerRandomizerFallback(roomDeck);
     }
   }
@@ -412,7 +526,12 @@ class RoomService extends ChangeNotifier {
     );
 
     if (_mongoService != null) {
-      await _mongoService!.saveRoom(_currentRoom!);
+      await _mongoService!.updateRoomPhase(
+        roomCode: _currentRoom!.code,
+        phase: RoomPhase.result,
+        matchedMovie: chosen,
+        isRandomizer: true,
+      );
     }
 
     notifyListeners();

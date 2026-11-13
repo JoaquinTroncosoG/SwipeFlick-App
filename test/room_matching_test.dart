@@ -172,5 +172,82 @@ void main() {
       expect(roomService.currentRoom, isNull);
       expect(roomService.lastError, contains('no encontrada'));
     });
+
+    test('Consenso simultáneo entre 2 participantes avanza automáticamente de fase', () async {
+      final roomService = RoomService();
+      final user1 = UserModel.createDemo(name: 'Usuario 1');
+      final user2 = UserModel.createDemo(name: 'Usuario 2');
+
+      final room = await roomService.createRoom(host: user1, matchThreshold: 2);
+      await roomService.joinRoom(code: room.code, user: user2);
+
+      await roomService.startPhase1Categories();
+      expect(roomService.currentRoom!.phase, RoomPhase.categories);
+
+      // Usuario 1 vota Acción (28)
+      await roomService.castCategoryVote(
+        userId: user1.id,
+        genreId: 28,
+        approved: true,
+        allAvailableGenres: GenreModel.defaultGenres,
+      );
+      // Aún no hay consenso
+      expect(roomService.currentRoom!.phase, RoomPhase.categories);
+
+      // Usuario 2 vota Acción (28) -> Coincidencia en categoría 1
+      await roomService.castCategoryVote(
+        userId: user2.id,
+        genreId: 28,
+        approved: true,
+        allAvailableGenres: GenreModel.defaultGenres,
+      );
+      // Threshold es 2, aún falta 1
+      expect(roomService.currentRoom!.phase, RoomPhase.categories);
+
+      // Ambos votan Comedia (35) -> Coincidencia en categoría 2 -> MATCH de categorías!
+      await roomService.castCategoryVote(
+        userId: user1.id,
+        genreId: 35,
+        approved: true,
+        allAvailableGenres: GenreModel.defaultGenres,
+      );
+      await roomService.castCategoryVote(
+        userId: user2.id,
+        genreId: 35,
+        approved: true,
+        allAvailableGenres: GenreModel.defaultGenres,
+      );
+
+      // Debe haber avanzado automáticamente a categoryMatch
+      expect(roomService.currentRoom!.phase, RoomPhase.categoryMatch);
+      expect(roomService.currentRoom!.matchedCategories.length, 2);
+
+      // Avanzar a Fase 2: Películas
+      await roomService.advanceToMoviesPhase();
+      expect(roomService.currentRoom!.phase, RoomPhase.movies);
+
+      // Votación de película: ambos votan true a la primera película del mock
+      final testMovie = MockMoviesData.sampleMovies.first;
+      await roomService.castMovieVote(
+        userId: user1.id,
+        movie: testMovie,
+        approved: true,
+        roomDeck: MockMoviesData.sampleMovies,
+      );
+      // Falta voto de Usuario 2
+      expect(roomService.currentRoom!.phase, RoomPhase.movies);
+
+      await roomService.castMovieVote(
+        userId: user2.id,
+        movie: testMovie,
+        approved: true,
+        roomDeck: MockMoviesData.sampleMovies,
+      );
+
+      // ¡MATCH UNÁNIME DE PELÍCULA!
+      expect(roomService.currentRoom!.phase, RoomPhase.result);
+      expect(roomService.currentRoom!.matchedMovie!.id, testMovie.id);
+      expect(roomService.currentRoom!.isRandomizerResult, false);
+    });
   });
 }

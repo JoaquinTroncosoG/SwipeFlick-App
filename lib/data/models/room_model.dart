@@ -128,6 +128,9 @@ class RoomModel {
   final bool isRandomizerResult;
   final DateTime createdAt;
   final DateTime expiresAt;
+  final Map<int, List<String>> categoryLikes; // genreId -> [userId1, userId2]
+  final Map<int, List<String>> movieLikes;    // movieId -> [userId1, userId2]
+  final List<MovieModel> movieDeck;           // Baraja compartida sincronizada
 
   const RoomModel({
     required this.id,
@@ -144,6 +147,9 @@ class RoomModel {
     this.isRandomizerResult = false,
     required this.createdAt,
     required this.expiresAt,
+    this.categoryLikes = const {},
+    this.movieLikes = const {},
+    this.movieDeck = const [],
   });
 
   bool get isFull => members.length >= maxMembers;
@@ -163,6 +169,9 @@ class RoomModel {
     bool? isRandomizerResult,
     DateTime? createdAt,
     DateTime? expiresAt,
+    Map<int, List<String>>? categoryLikes,
+    Map<int, List<String>>? movieLikes,
+    List<MovieModel>? movieDeck,
   }) {
     return RoomModel(
       id: id ?? this.id,
@@ -179,10 +188,25 @@ class RoomModel {
       isRandomizerResult: isRandomizerResult ?? this.isRandomizerResult,
       createdAt: createdAt ?? this.createdAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      categoryLikes: categoryLikes ?? this.categoryLikes,
+      movieLikes: movieLikes ?? this.movieLikes,
+      movieDeck: movieDeck ?? this.movieDeck,
     );
   }
 
   factory RoomModel.fromJson(Map<String, dynamic> json) {
+    Map<int, List<String>> parseLikesMap(dynamic raw) {
+      if (raw is! Map) return {};
+      final result = <int, List<String>>{};
+      raw.forEach((k, v) {
+        final id = int.tryParse(k.toString());
+        if (id != null && v is List) {
+          result[id] = v.map((e) => e.toString()).toList();
+        }
+      });
+      return result;
+    }
+
     return RoomModel(
       id: json['id'] as String? ?? json['_id']?.toString() ?? '',
       code: (json['code'] as String? ?? '').trim().toUpperCase(),
@@ -222,6 +246,15 @@ class RoomModel {
           ? DateTime.tryParse(json['expires_at'].toString()) ??
               DateTime.now().add(const Duration(minutes: 30))
           : (json['expiresAt'] != null ? DateTime.tryParse(json['expiresAt'].toString()) ?? DateTime.now().add(const Duration(minutes: 30)) : DateTime.now().add(const Duration(minutes: 30))),
+      categoryLikes: parseLikesMap(json['category_likes'] ?? json['categoryLikes']),
+      movieLikes: parseLikesMap(json['movie_likes'] ?? json['movieLikes']),
+      movieDeck: (json['movie_deck'] as List<dynamic>?)
+              ?.map((m) => MovieModel.fromJson(Map<String, dynamic>.from(m as Map)))
+              .toList() ??
+          (json['movieDeck'] as List<dynamic>?)
+              ?.map((m) => MovieModel.fromJson(Map<String, dynamic>.from(m as Map)))
+              .toList() ??
+          [],
     );
   }
 
@@ -241,6 +274,9 @@ class RoomModel {
       'is_randomizer_result': isRandomizerResult,
       'created_at': createdAt.toIso8601String(),
       'expires_at': expiresAt.toIso8601String(),
+      'category_likes': categoryLikes.map((k, v) => MapEntry(k.toString(), v)),
+      'movie_likes': movieLikes.map((k, v) => MapEntry(k.toString(), v)),
+      'movie_deck': movieDeck.map((m) => m.toJson()).toList(),
     };
   }
 }
