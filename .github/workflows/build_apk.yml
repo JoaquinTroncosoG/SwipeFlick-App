@@ -83,4 +83,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create v1.10.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.10.0.apk --title "SwipeFlick v1.10.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.10.0.apk para instalar y probar en tu celular Android." --clobber
+          gh release delete v1.10.0-apk --yes || true
+          git tag -d v1.10.0-apk 2>/dev/null || true
+          git push origin :refs/tags/v1.10.0-apk 2>/dev/null || true
+          gh release create v1.10.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.10.0.apk --title "SwipeFlick v1.10.0 (APK Android)" --notes "Descarga directa de SwipeFlick-v1.10.0.apk para instalar y probar en tu celular Android."
