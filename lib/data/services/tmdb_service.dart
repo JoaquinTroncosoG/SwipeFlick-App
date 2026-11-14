@@ -425,13 +425,31 @@ class TmdbService {
         // Parsear reviews
         List<ReviewModel> reviews = [];
         final revResults = data['reviews']?['results'];
-        if (revResults is List) {
+        if (revResults is List && revResults.isNotEmpty) {
           reviews = revResults.map((r) => ReviewModel.fromJson(r as Map<String, dynamic>)).toList();
+        } else {
+          // Si no había reseñas en es-ES, consultar endpoint general de reviews de TMDB
+          try {
+            final globalRevUrl = Uri.parse('$_baseUrl/movie/$movieId/reviews?api_key=$key');
+            final gRes = await http.get(globalRevUrl).timeout(const Duration(seconds: 4));
+            if (gRes.statusCode == 200) {
+              final gData = jsonDecode(gRes.body) as Map<String, dynamic>;
+              final gList = gData['results'] as List? ?? [];
+              reviews = gList.map((r) => ReviewModel.fromJson(r as Map<String, dynamic>)).toList();
+            }
+          } catch (_) {}
         }
+
+        // Asegurar como mínimo 1 positiva y 1 crítica/negativa (garantía de reseñas balanceadas)
+        reviews = ReviewModel.ensureBalancedReviews(
+          reviews.isNotEmpty ? reviews : (local?.reviews ?? []),
+          title: data['title'] as String? ?? local?.title ?? 'Película',
+          rating: ((data['vote_average'] ?? local?.rating ?? 7.5) as num).toDouble(),
+        );
 
         final movie = MovieModel.fromJson(data).copyWith(
           streamingProviders: providers.isNotEmpty ? providers : (local?.streamingProviders ?? []),
-          reviews: reviews.isNotEmpty ? reviews : (local?.reviews ?? []),
+          reviews: reviews,
         );
         return movie;
       }

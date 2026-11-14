@@ -7,6 +7,7 @@ import 'package:swipeflick/data/mock/mock_movies_data.dart';
 import 'package:swipeflick/core/widgets/cinema_snackbar.dart';
 import 'package:swipeflick/data/models/genre_model.dart';
 import 'package:swipeflick/data/models/movie_model.dart';
+import 'package:swipeflick/data/models/review_model.dart';
 import 'package:swipeflick/data/models/room_model.dart';
 import 'package:swipeflick/data/services/favorites_service.dart';
 import 'package:swipeflick/data/services/tmdb_service.dart';
@@ -19,11 +20,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.21.0');
-      expect(AppConstants.changeCounter, 22);
-      expect(AppConstants.appVersionDisplay, contains('v1.21.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #22'));
-      expect(AppConstants.changeLog.length, 23);
+      expect(AppConstants.appVersion, '1.22.0');
+      expect(AppConstants.changeCounter, 23);
+      expect(AppConstants.appVersionDisplay, contains('v1.22.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #23'));
+      expect(AppConstants.changeLog.length, 24);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -384,6 +385,60 @@ void main() {
       // Vaciar historial por completo (botón borrar historial)
       await favs.clearMatchesHistory();
       expect(favs.matchesHistory.isEmpty, true);
+    });
+
+    test('ReviewModel.ensureBalancedReviews garantiza al menos 1 positiva y 1 crítica', () {
+      // Caso 1: Lista vacía (ej. El Grinch sin críticas en español)
+      final emptyResult = ReviewModel.ensureBalancedReviews([], title: 'El Grinch', rating: 6.8);
+      expect(emptyResult.length, 2);
+      expect(emptyResult.any((r) => r.isPositive), true);
+      expect(emptyResult.any((r) => !r.isPositive), true);
+
+      // Caso 2: Solo críticas positivas
+      final onlyPositive = [
+        ReviewModel(
+          id: '1',
+          author: 'Fan',
+          avatarUrl: '',
+          content: 'Excelente película',
+          rating: 9.0,
+          isPositive: true,
+          likesCount: 10,
+          createdAt: DateTime.now(),
+        ),
+      ];
+      final balanced1 = ReviewModel.ensureBalancedReviews(onlyPositive, title: 'Inception', rating: 8.8);
+      expect(balanced1.length, 2);
+      expect(balanced1.any((r) => r.isPositive), true);
+      expect(balanced1.any((r) => !r.isPositive), true);
+
+      // Caso 3: Ya balanceadas
+      final alreadyBalanced = [
+        ReviewModel(
+          id: '1',
+          author: 'Fan',
+          avatarUrl: '',
+          content: 'Excelente',
+          rating: 9.0,
+          isPositive: true,
+          likesCount: 10,
+          createdAt: DateTime.now(),
+        ),
+        ReviewModel(
+          id: '2',
+          author: 'Crítico',
+          avatarUrl: '',
+          content: 'Pudo mejorar',
+          rating: 5.0,
+          isPositive: false,
+          likesCount: 5,
+          createdAt: DateTime.now(),
+        ),
+      ];
+      final balanced2 = ReviewModel.ensureBalancedReviews(alreadyBalanced, title: 'Matrix', rating: 8.7);
+      expect(balanced2.length, 2);
+      expect(balanced2.first.author, 'Fan');
+      expect(balanced2.last.author, 'Crítico');
     });
   });
 }

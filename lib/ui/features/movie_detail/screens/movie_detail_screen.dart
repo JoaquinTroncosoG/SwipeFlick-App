@@ -5,6 +5,7 @@ import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_image.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../core/widgets/rating_badge.dart';
 import '../../../../core/widgets/streaming_provider_pill.dart';
 import '../../../../data/models/movie_model.dart';
@@ -25,7 +26,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
   late MovieModel _movie;
   bool _isLoadingProviders = false;
   bool _isOverviewExpanded = false;
+  bool _isStreamingExpanded = false;
   int _selectedReviewFilter = 0; // 0: Todas, 1: Positivas, 2: Críticas
+  int _visibleReviewsCount = 2; // Mostrar como mínimo 1 de cada 1 (2 iniciales) y paginar con "Mostrar más"
 
   @override
   void initState() {
@@ -62,7 +65,13 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     final favService = context.watch<FavoritesService>();
     final isFav = favService.isFavorite(movie.id);
 
-    final filteredReviews = movie.reviews.where((r) {
+    final allReviews = ReviewModel.ensureBalancedReviews(
+      movie.reviews,
+      title: movie.title,
+      rating: movie.rating,
+    );
+
+    final filteredReviews = allReviews.where((r) {
       if (_selectedReviewFilter == 1) return r.isPositive;
       if (_selectedReviewFilter == 2) return !r.isPositive;
       return true;
@@ -104,15 +113,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                 ),
                 onPressed: () {
                   favService.toggleFavorite(movie);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      duration: const Duration(seconds: 1),
-                      backgroundColor: AppColors.surfaceElevated,
-                      content: Text(
-                        isFav ? 'Eliminado de tu lista' : '¡Guardado en tu lista!',
-                        style: AppTextStyles.bodyMedium,
-                      ),
-                    ),
+                  CinemaSnackBar.show(
+                    context,
+                    isFav ? 'Eliminado de tu lista' : '¡Guardado en tu lista!',
+                    duration: const Duration(seconds: 3),
                   );
                 },
               ),
@@ -244,12 +248,10 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                         variant: CinemaButtonVariant.secondary,
                         width: 130,
                         onPressed: () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              duration: Duration(seconds: 1),
-                              backgroundColor: AppColors.surfaceElevated,
-                              content: Text('Enlace copiado para compartir con amigos'),
-                            ),
+                          CinemaSnackBar.show(
+                            context,
+                            'Enlace copiado para compartir con amigos',
+                            duration: const Duration(seconds: 3),
                           );
                         },
                       ),
@@ -342,10 +344,58 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                       ),
                     )
                   else if (movie.streamingProviders.isNotEmpty) ...[
-                    Wrap(
-                      children: movie.streamingProviders.map((p) {
-                        return StreamingProviderPill(provider: p);
-                      }).toList(),
+                    Builder(
+                      builder: (context) {
+                        final visibleProviders = _isStreamingExpanded
+                            ? movie.streamingProviders
+                            : movie.streamingProviders.take(3).toList();
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Wrap(
+                              children: visibleProviders.map((p) {
+                                return StreamingProviderPill(provider: p);
+                              }).toList(),
+                            ),
+                            if (movie.streamingProviders.length > 3) ...[
+                              const SizedBox(height: 8),
+                              InkWell(
+                                onTap: () {
+                                  setState(() {
+                                    _isStreamingExpanded = !_isStreamingExpanded;
+                                  });
+                                },
+                                borderRadius: BorderRadius.circular(8),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 2),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _isStreamingExpanded
+                                            ? 'Mostrar menos plataformas'
+                                            : 'Mostrar más plataformas (${movie.streamingProviders.length - 3} más)',
+                                        style: AppTextStyles.button.copyWith(
+                                          color: AppColors.accent,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Icon(
+                                        _isStreamingExpanded
+                                            ? Icons.keyboard_arrow_up_rounded
+                                            : Icons.keyboard_arrow_down_rounded,
+                                        color: AppColors.accent,
+                                        size: 18,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        );
+                      },
                     ),
                   ] else ...[
                     Container(
@@ -384,7 +434,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     children: [
                       Text('Reseñas de la comunidad', style: AppTextStyles.sectionTitle),
                       Text(
-                        '${movie.reviews.length} opiniones',
+                        '${allReviews.length} opiniones',
                         style: AppTextStyles.caption,
                       ),
                     ],
@@ -404,7 +454,46 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                   const SizedBox(height: 16),
 
                   if (filteredReviews.isNotEmpty) ...[
-                    ...filteredReviews.map((review) => _buildReviewCard(review)),
+                    ...filteredReviews.take(_visibleReviewsCount).map((review) => _buildReviewCard(review)),
+                    if (filteredReviews.length > _visibleReviewsCount) ...[
+                      const SizedBox(height: 6),
+                      Center(
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _visibleReviewsCount += 3;
+                            });
+                          },
+                          icon: const Icon(Icons.expand_more_rounded, color: AppColors.accent, size: 18),
+                          label: Text(
+                            'Mostrar más comentarios (${filteredReviews.length - _visibleReviewsCount} restantes)',
+                            style: AppTextStyles.button.copyWith(color: AppColors.accent, fontSize: 13),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: AppColors.accent, width: 1.2),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            backgroundColor: AppColors.surfaceElevated,
+                          ),
+                        ),
+                      ),
+                    ] else if (_visibleReviewsCount > 2 && filteredReviews.length > 2) ...[
+                      const SizedBox(height: 6),
+                      Center(
+                        child: TextButton.icon(
+                          onPressed: () {
+                            setState(() {
+                              _visibleReviewsCount = 2;
+                            });
+                          },
+                          icon: const Icon(Icons.expand_less_rounded, color: AppColors.accent, size: 18),
+                          label: Text(
+                            'Mostrar menos comentarios',
+                            style: AppTextStyles.button.copyWith(color: AppColors.accent, fontSize: 13),
+                          ),
+                        ),
+                      ),
+                    ],
                   ] else ...[
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -435,6 +524,7 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
       onTap: () {
         setState(() {
           _selectedReviewFilter = index;
+          _visibleReviewsCount = 2;
         });
       },
       child: Container(

@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.21.0';
-  static const int changeCounter = 22;
-  static const String appVersionDisplay = 'v1.21.0 • Cambio #22';
+  static const String appVersion = '1.22.0';
+  static const int changeCounter = 23;
+  static const String appVersionDisplay = 'v1.22.0 • Cambio #23';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -121,6 +121,11 @@ class AppConstants {
       'version': '1.21.0 (Cambio #22)',
       'title': 'Carga en Vivo de Plataformas de Streaming en Fichas & Enriquecimiento de Barajas',
       'description': 'Resolución de visualización de proveedores de streaming (ej. La La Land): consulta reactiva y automática de plataformas JustWatch multi-región en MovieDetailScreen y RoomMatchScreen; enriquecimiento en paralelo de barajas en discoverMoviesByGenres para mostrar logotipos de plataformas directamente en las cartas de swipe; soporte expandido para suscripción (flatrate), gratis con anuncios (free/ads) y tiendas digitales (buy/rent); y mensaje descriptivo de carga en vivo.',
+    },
+    {
+      'version': '1.22.0 (Cambio #23)',
+      'title': 'Plataformas de Streaming Plegables y Reseñas Balanceadas con Paginación',
+      'description': 'Optimización visual en fichas cinematográficas: visualización inicial de 3 plataformas de streaming con botón desplegable "Mostrar más plataformas (+X más)" / "Mostrar menos"; garantía de reseñas balanceadas (al menos 1 positiva y 1 crítica/constructiva para cualquier película del catálogo, incluyendo títulos animados o de nicho como El Grinch); consulta global de reseñas en TMDB; y paginación progresiva de comentarios con botones interactivos de expansión.',
     },
   ];
 

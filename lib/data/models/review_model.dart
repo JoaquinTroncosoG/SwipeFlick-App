@@ -49,4 +49,48 @@ class ReviewModel {
       'created_at': createdAt.toIso8601String(),
     };
   }
+
+  /// Asegura que la lista de reseñas contenga al menos 1 positiva y 1 crítica/negativa
+  static List<ReviewModel> ensureBalancedReviews(
+    List<ReviewModel> existing, {
+    String title = '',
+    double rating = 7.5,
+  }) {
+    final list = List<ReviewModel>.from(existing);
+    final hasPositive = list.any((r) => r.isPositive);
+    final hasCritical = list.any((r) => !r.isPositive);
+
+    if (!hasPositive) {
+      list.insert(
+        0,
+        ReviewModel(
+          id: 'pos_${title.hashCode}',
+          author: 'Cinéfilo Entusiasta',
+          avatarUrl: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+          content: 'Una obra muy entretenida y visualmente cuidada. Destaca el ritmo y las actuaciones, logrando conectar de principio a fin con el espectador.',
+          rating: (rating >= 7.0 ? rating : 8.0).clamp(7.0, 10.0),
+          isPositive: true,
+          likesCount: 145,
+          createdAt: DateTime.now().subtract(const Duration(days: 2)),
+        ),
+      );
+    }
+
+    if (!hasCritical) {
+      list.add(
+        ReviewModel(
+          id: 'crit_${title.hashCode}',
+          author: 'Crítica Analítica',
+          avatarUrl: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150',
+          content: 'Aunque tiene momentos rescatables y buen despliegue visual, la trama se torna algo predecible en ciertos tramos y el desenlace pudo haber tenido mayor profundidad.',
+          rating: (rating < 7.0 ? rating : 5.5).clamp(1.0, 6.5),
+          isPositive: false,
+          likesCount: 78,
+          createdAt: DateTime.now().subtract(const Duration(days: 5)),
+        ),
+      );
+    }
+
+    return list;
+  }
 }
