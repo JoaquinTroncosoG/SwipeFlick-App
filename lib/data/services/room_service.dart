@@ -135,6 +135,7 @@ class RoomService extends ChangeNotifier {
     int maxMembers = 5,
     int matchThreshold = 2,
     bool excludeMatches = false,
+    bool streamingOnly = false,
   }) async {
     final code = _generateRoomCode();
     final now = DateTime.now();
@@ -159,6 +160,7 @@ class RoomService extends ChangeNotifier {
       maxMembers: maxMembers,
       matchThreshold: matchThreshold,
       excludeMatches: excludeMatches,
+      streamingOnly: streamingOnly,
       status: RoomStatus.waiting,
       phase: RoomPhase.lobby,
       members: [hostMember],

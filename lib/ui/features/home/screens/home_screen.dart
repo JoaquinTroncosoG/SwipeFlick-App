@@ -47,9 +47,10 @@ class _HomeScreenState extends State<HomeScreen> {
     super.dispose();
   }
 
-  Future<void> _loadMovies() async {
+  Future<void> _loadMovies({bool forceRefresh = false}) async {
     final tmdb = context.read<TmdbService>();
-    final movies = await tmdb.getTrendingMovies();
+    final movies = await tmdb.getTrendingMovies(forceRefresh: forceRefresh);
+    if (!mounted) return;
     setState(() {
       _trendingMovies = movies;
       if (movies.isNotEmpty) {
@@ -81,7 +82,11 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppColors.background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-          : CustomScrollView(
+          : RefreshIndicator(
+              color: AppColors.accent,
+              backgroundColor: AppColors.surfaceElevated,
+              onRefresh: () => _loadMovies(forceRefresh: true),
+              child: CustomScrollView(
               slivers: [
                 // AppBar con logo, título y badge de versión / contador de cambio
                 SliverAppBar(
@@ -337,7 +342,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             children: [
                               Text(
                                 _searchQuery.isEmpty
-                                    ? 'Tendencias de la Semana'
+                                    ? 'Tendencias de Hoy (Actualizado cada 24h)'
                                     : (detectedGenre != null
                                         ? '${detectedGenre.emoji} Categoría: ${detectedGenre.name}'
                                         : 'Resultados de Búsqueda'),
@@ -406,6 +411,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
             ),
+          ),
     );
   }
 

@@ -128,6 +128,7 @@ class RoomModel {
   final int maxMembers; // Personalizable por el host (mínimo 2)
   final int matchThreshold; // 1 a 5 categorías necesarias para coincidir
   final bool excludeMatches; // Considerar/excluir películas ya vistas o matches de los miembros
+  final bool streamingOnly; // Solo películas en plataformas de streaming (descartar solo cine)
   final RoomStatus status;
   final RoomPhase phase;
   final List<RoomMemberModel> members;
@@ -148,6 +149,7 @@ class RoomModel {
     this.maxMembers = 5,
     this.matchThreshold = 2,
     this.excludeMatches = false,
+    this.streamingOnly = false,
     this.status = RoomStatus.waiting,
     this.phase = RoomPhase.lobby,
     this.members = const [],
@@ -171,6 +173,7 @@ class RoomModel {
     int? maxMembers,
     int? matchThreshold,
     bool? excludeMatches,
+    bool? streamingOnly,
     RoomStatus? status,
     RoomPhase? phase,
     List<RoomMemberModel>? members,
@@ -191,6 +194,7 @@ class RoomModel {
       maxMembers: maxMembers ?? this.maxMembers,
       matchThreshold: matchThreshold ?? this.matchThreshold,
       excludeMatches: excludeMatches ?? this.excludeMatches,
+      streamingOnly: streamingOnly ?? this.streamingOnly,
       status: status ?? this.status,
       phase: phase ?? this.phase,
       members: members ?? this.members,
@@ -226,6 +230,7 @@ class RoomModel {
       maxMembers: json['max_members'] as int? ?? json['maxMembers'] as int? ?? 5,
       matchThreshold: json['match_threshold'] as int? ?? json['matchThreshold'] as int? ?? 2,
       excludeMatches: json['exclude_matches'] as bool? ?? json['excludeMatches'] as bool? ?? false,
+      streamingOnly: json['streaming_only'] as bool? ?? json['streamingOnly'] as bool? ?? false,
       status: RoomStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => RoomStatus.waiting,
@@ -279,6 +284,7 @@ class RoomModel {
       'max_members': maxMembers,
       'match_threshold': matchThreshold,
       'exclude_matches': excludeMatches,
+      'streaming_only': streamingOnly,
       'status': status.name,
       'phase': phase.name,
       'members': members.map((m) => m.toJson()).toList(),

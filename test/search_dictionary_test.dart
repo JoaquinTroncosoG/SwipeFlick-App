@@ -19,11 +19,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.19.0');
-      expect(AppConstants.changeCounter, 20);
-      expect(AppConstants.appVersionDisplay, contains('v1.19.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #20'));
-      expect(AppConstants.changeLog.length, 21);
+      expect(AppConstants.appVersion, '1.20.0');
+      expect(AppConstants.changeCounter, 21);
+      expect(AppConstants.appVersionDisplay, contains('v1.20.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #21'));
+      expect(AppConstants.changeLog.length, 22);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -306,7 +306,7 @@ void main() {
       expect(enriched.emoji, '💥');
     });
 
-    test('RoomModel soporta capacidad personalizada y switch de excludeMatches', () {
+    test('RoomModel soporta capacidad personalizada, excludeMatches y streamingOnly', () {
       final room = RoomModel(
         id: 'test-room-1',
         code: 'ABC123',
@@ -314,20 +314,36 @@ void main() {
         hostUsername: 'Host Cinefilo',
         maxMembers: 14, // Personalizable
         excludeMatches: true, // Considerar/excluir matches
+        streamingOnly: true, // Solo títulos en streaming
         createdAt: DateTime.now(),
         expiresAt: DateTime.now().add(const Duration(minutes: 30)),
       );
 
       expect(room.maxMembers, 14);
       expect(room.excludeMatches, true);
+      expect(room.streamingOnly, true);
 
       final json = room.toJson();
       expect(json['max_members'], 14);
       expect(json['exclude_matches'], true);
+      expect(json['streaming_only'], true);
 
       final reconstructed = RoomModel.fromJson(json);
       expect(reconstructed.maxMembers, 14);
       expect(reconstructed.excludeMatches, true);
+      expect(reconstructed.streamingOnly, true);
+    });
+
+    test('TmdbService discoverMoviesByGenres soporta filtro streamingOnly', () async {
+      final tmdb = TmdbService();
+      await tmdb.init();
+
+      // En modo mock o sin red, discoverMoviesByGenres con streamingOnly filtra películas con streamingProviders
+      final list = await tmdb.discoverMoviesByGenres([28], streamingOnly: true);
+      expect(list, isNotEmpty);
+      for (final m in list) {
+        expect(m.genreIds.contains(28), true);
+      }
     });
 
     test('MovieModel resuelve géneros automáticamente desde genre_ids de TMDB', () {

@@ -33,6 +33,7 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
   List<GenreModel> _categoryDeck = [];
   final List<GenreModel> _approvedGenres = [];
   int _categoryDeckIndex = 0;
+  bool _streamingOnly = false;
 
   List<MovieModel> _movieDeck = [];
   int _movieDeckIndex = 0;
@@ -79,7 +80,10 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
     setState(() => _isLoading = true);
     final tmdb = context.read<TmdbService>();
     final genreIds = _approvedGenres.map((g) => g.id).toList();
-    final movies = await tmdb.discoverMoviesByGenres(genreIds);
+    final movies = await tmdb.discoverMoviesByGenres(
+      genreIds,
+      streamingOnly: _streamingOnly,
+    );
 
     setState(() {
       _movieDeck = List.from(movies);
@@ -180,6 +184,10 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
                   // Barra de progreso sutil
                   _buildProgressBar(),
 
+                  // Selector rápido de filtro Streaming (Paso 1)
+                  if (_currentStep == SoloSwipeStep.categories)
+                    _buildStreamingFilterBadge(),
+
                   // Contenedor principal de tarjetas tipo Tinder
                   Expanded(
                     child: Padding(
@@ -215,6 +223,56 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
         alignment: Alignment.centerLeft,
         widthFactor: progress,
         child: Container(color: AppColors.accent),
+      ),
+    );
+  }
+
+  Widget _buildStreamingFilterBadge() {
+    return GestureDetector(
+      onTap: () {
+        setState(() {
+          _streamingOnly = !_streamingOnly;
+        });
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        margin: const EdgeInsets.only(top: 8, bottom: 2, left: 20, right: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: _streamingOnly ? AppColors.accentSubtle : AppColors.surfaceElevated,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: _streamingOnly ? AppColors.accent : AppColors.surfaceBorder,
+            width: _streamingOnly ? 1.5 : 1.0,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              _streamingOnly ? Icons.live_tv_rounded : Icons.tv_off_rounded,
+              size: 16,
+              color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _streamingOnly
+                  ? 'Filtro: Solo en Streaming (Excluir cine)'
+                  : 'Filtro: Todo el catálogo (Cine + Streaming)',
+              style: AppTextStyles.caption.copyWith(
+                color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+                fontWeight: _streamingOnly ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Icon(
+              _streamingOnly ? Icons.check_circle_rounded : Icons.tune_rounded,
+              size: 14,
+              color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+            ),
+          ],
+        ),
       ),
     );
   }

@@ -74,7 +74,12 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
     // 3. Generar la baraja desde TMDB
     final matchedGenreIds = room?.matchedCategories.map((c) => c.id).toList() ?? [];
     final pagesToFetch = (room?.excludeMatches ?? false) ? 4 : 3;
-    var list = await tmdb.discoverMoviesByGenres(matchedGenreIds, pages: pagesToFetch);
+    final streamingOnly = room?.streamingOnly ?? false;
+    var list = await tmdb.discoverMoviesByGenres(
+      matchedGenreIds,
+      pages: pagesToFetch,
+      streamingOnly: streamingOnly,
+    );
 
     // 4. Si el host activó "Considerar películas matches?", filtrar las películas ya vistas / matches del grupo
     if (room != null && room.excludeMatches) {
@@ -567,6 +572,31 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
                       color: AppColors.textPrimary.withValues(alpha: 0.8),
                     ),
                   ),
+                  if (movie.streamingProviders.isNotEmpty) ...[
+                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Text(
+                          'En streaming: ',
+                          style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                        ),
+                        ...movie.streamingProviders.take(3).map(
+                              (p) => Padding(
+                                padding: const EdgeInsets.only(right: 6),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: Image.network(
+                                    p.fullLogoUrl,
+                                    width: 18,
+                                    height: 18,
+                                    errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                                  ),
+                                ),
+                              ),
+                            ),
+                      ],
+                    ),
+                  ],
                 ],
               ),
             ),

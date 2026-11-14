@@ -20,6 +20,7 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
   int _selectedMaxMembers = AppConstants.defaultMaxMembers;
   int _selectedMatchThreshold = AppConstants.defaultMatchThreshold;
   bool _excludeMatches = false;
+  bool _streamingOnly = false;
   bool _isCreating = false;
 
   static const List<int> _quickPresets = [2, 3, 4, 5, 6, 8, 10, 15, 20];
@@ -264,6 +265,61 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
                   ],
                 ),
               ),
+              const SizedBox(height: 12),
+
+              // Opción: ¿Solo en Streaming?
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _streamingOnly ? AppColors.accent : AppColors.surfaceBorder,
+                    width: _streamingOnly ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: _streamingOnly ? AppColors.accentSubtle : AppColors.surface,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Icon(
+                        Icons.live_tv_rounded,
+                        color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '¿Solo en Streaming?',
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: _streamingOnly ? AppColors.accent : AppColors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            'Descarta películas que solo están en cines y sugiere únicamente títulos disponibles en plataformas (Netflix, Disney+, Max, etc.).',
+                            style: AppTextStyles.caption.copyWith(fontSize: 11),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Switch(
+                      value: _streamingOnly,
+                      activeColor: AppColors.accent,
+                      onChanged: (val) => setState(() => _streamingOnly = val),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 24),
 
               // Botón Crear
@@ -282,6 +338,7 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
                     maxMembers: _selectedMaxMembers,
                     matchThreshold: _selectedMatchThreshold,
                     excludeMatches: _excludeMatches,
+                    streamingOnly: _streamingOnly,
                   );
                   if (mounted) {
                     setState(() => _isCreating = false);

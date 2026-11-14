@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.19.0';
-  static const int changeCounter = 20;
-  static const String appVersionDisplay = 'v1.19.0 • Cambio #20';
+  static const String appVersion = '1.20.0';
+  static const int changeCounter = 21;
+  static const String appVersionDisplay = 'v1.20.0 • Cambio #21';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -111,6 +111,11 @@ class AppConstants {
       'version': '1.19.0 (Cambio #20)',
       'title': 'Candado Atómico First-Match-Wins en Atlas, Baraja Compartida Estricta y Ganador Canónico',
       'description': 'Resolución de discrepancia en resultados grupales eliminando condiciones de carrera: candado atómico en MongoDB Atlas donde la primera película en alcanzar consenso unánime queda blindada permanentemente impidiendo sobreescrituras; sincronización estricta de la baraja generada por el anfitrión para todos los invitados; priorización cronológica del voto decisivo; y seguro de navegación única anti-rebote.',
+    },
+    {
+      'version': '1.20.0 (Cambio #21)',
+      'title': 'Actualización Diaria de Catálogo (24h) y Filtro "Solo en Streaming" (Descartar Cine)',
+      'description': 'Actualización automática del catálogo cada 24 horas sincronizada con el trending diario de TMDB (/trending/movie/day a las 00:00 UTC), expiración diaria de caché y rotación de páginas según el día del año; nuevo filtro "Solo en Streaming" en modo individual y salas grupales para omitir películas que solo están en cines y sugerir únicamente títulos disponibles en plataformas (Netflix, Disney+, Max, Prime Video, etc.); integración multi-región de JustWatch (CL, MX, ES, AR, CO, US); y pull-to-refresh en la pantalla de inicio.',
     },
   ];
 
