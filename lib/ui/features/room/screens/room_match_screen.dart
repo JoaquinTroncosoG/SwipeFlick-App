@@ -11,6 +11,7 @@ import '../../../../core/widgets/streaming_provider_pill.dart';
 import '../../../../data/models/movie_model.dart';
 import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/room_service.dart';
+import '../../../../data/services/tmdb_service.dart';
 import '../../movie_detail/screens/movie_detail_screen.dart';
 
 class RoomMatchScreen extends StatefulWidget {
@@ -28,18 +29,34 @@ class RoomMatchScreen extends StatefulWidget {
 }
 
 class _RoomMatchScreenState extends State<RoomMatchScreen> {
+  late MovieModel _movie;
+
   @override
   void initState() {
     super.initState();
+    _movie = widget.movie;
+    _fetchFullDetails();
     // Guardar en historial de matches automáticamente
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<FavoritesService>().addMatchToHistory(widget.movie);
+      context.read<FavoritesService>().addMatchToHistory(_movie);
     });
+  }
+
+  Future<void> _fetchFullDetails() async {
+    if (_movie.streamingProviders.isNotEmpty) return;
+    try {
+      final tmdb = context.read<TmdbService>();
+      final full = await tmdb.getMovieDetails(_movie.id);
+      if (mounted) {
+        setState(() => _movie = full);
+        context.read<FavoritesService>().addMatchToHistory(full);
+      }
+    } catch (_) {}
   }
 
   @override
   Widget build(BuildContext context) {
-    final movie = widget.movie;
+    final movie = _movie;
     final isRandom = widget.isRandomizerResult;
 
     return ConfettiOverlay(

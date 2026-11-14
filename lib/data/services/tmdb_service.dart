@@ -231,9 +231,25 @@ class TmdbService {
         }
 
         if (accumulated.isNotEmpty) {
-          await _saveToCache(cacheKey, jsonEncode(accumulated.map((m) => m.toJson()).toList()));
-          accumulated.shuffle();
-          return accumulated;
+          // Enriquecer en paralelo las primeras películas con sus proveedores de streaming (JustWatch)
+          final enriched = await Future.wait(
+            accumulated.take(12).map((m) async {
+              try {
+                final provs = await getWatchProviders(m.id);
+                if (provs.isNotEmpty) {
+                  return m.copyWith(streamingProviders: provs);
+                }
+              } catch (_) {}
+              return m;
+            }),
+          );
+          final finalDeck = [
+            ...enriched,
+            ...accumulated.skip(12),
+          ];
+          await _saveToCache(cacheKey, jsonEncode(finalDeck.map((m) => m.toJson()).toList()));
+          finalDeck.shuffle();
+          return finalDeck;
         }
       } catch (e) {
         debugPrint('[TmdbService] Error al consultar discover de TMDB: $e');
@@ -306,39 +322,70 @@ class TmdbService {
     return [];
   }
 
-  /// Extrae proveedores tipo flatrate (suscripción) de Latinoamérica (CL, MX, AR, CO), España y EE.UU.
+  /// Extrae proveedores tipo suscripción (flatrate), gratis/con anuncios (free/ads) o compra/alquiler digital
   List<StreamingProviderModel> _parseProvidersFromResults(Map results) {
     final priorityRegions = ['CL', 'MX', 'ES', 'AR', 'CO', 'US'];
     final seenProviderIds = <int>{};
     final providers = <StreamingProviderModel>[];
 
+    // 1. Priorizar servicios de streaming por suscripción (flatrate) y gratuitos/ads
     for (final region in priorityRegions) {
       final regionData = results[region];
-      if (regionData is Map && regionData['flatrate'] is List) {
-        for (final p in regionData['flatrate']) {
-          if (p is Map<String, dynamic>) {
-            final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
-            if (!seenProviderIds.contains(model.id)) {
-              seenProviderIds.add(model.id);
-              providers.add(model);
+      if (regionData is Map) {
+        for (final key in ['flatrate', 'ads', 'free']) {
+          if (regionData[key] is List) {
+            for (final p in regionData[key]) {
+              if (p is Map<String, dynamic>) {
+                final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
+                if (!seenProviderIds.contains(model.id)) {
+                  seenProviderIds.add(model.id);
+                  providers.add(model);
+                }
+              }
             }
           }
         }
       }
     }
 
-    if (providers.isNotEmpty) return providers;
+    // 2. Si no se encontraron en regiones prioritarias, revisar en cualquier otra región
+    if (providers.isEmpty) {
+      for (final entry in results.entries) {
+        final regionData = entry.value;
+        if (regionData is Map) {
+          for (final key in ['flatrate', 'ads', 'free']) {
+            if (regionData[key] is List) {
+              for (final p in regionData[key]) {
+                if (p is Map<String, dynamic>) {
+                  final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
+                  if (!seenProviderIds.contains(model.id)) {
+                    seenProviderIds.add(model.id);
+                    providers.add(model);
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
 
-    // Si no se encontraron en regiones prioritarias, buscar en cualquier otra región
-    for (final entry in results.entries) {
-      final regionData = entry.value;
-      if (regionData is Map && regionData['flatrate'] is List) {
-        for (final p in regionData['flatrate']) {
-          if (p is Map<String, dynamic>) {
-            final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
-            if (!seenProviderIds.contains(model.id)) {
-              seenProviderIds.add(model.id);
-              providers.add(model);
+    // 3. Complemento digital si no hay suscripción activa: tiendas de alquiler y compra digital
+    if (providers.isEmpty) {
+      for (final region in priorityRegions) {
+        final regionData = results[region];
+        if (regionData is Map) {
+          for (final key in ['buy', 'rent']) {
+            if (regionData[key] is List) {
+              for (final p in regionData[key]) {
+                if (p is Map<String, dynamic>) {
+                  final model = StreamingProviderModel.fromJson(p, type: key);
+                  if (!seenProviderIds.contains(model.id)) {
+                    seenProviderIds.add(model.id);
+                    providers.add(model);
+                  }
+                }
+              }
             }
           }
         }

@@ -10,6 +10,7 @@ import '../../../../core/widgets/streaming_provider_pill.dart';
 import '../../../../data/models/movie_model.dart';
 import '../../../../data/models/review_model.dart';
 import '../../../../data/services/favorites_service.dart';
+import '../../../../data/services/tmdb_service.dart';
 
 class MovieDetailScreen extends StatefulWidget {
   final MovieModel movie;
@@ -21,12 +22,43 @@ class MovieDetailScreen extends StatefulWidget {
 }
 
 class _MovieDetailScreenState extends State<MovieDetailScreen> {
+  late MovieModel _movie;
+  bool _isLoadingProviders = false;
   bool _isOverviewExpanded = false;
   int _selectedReviewFilter = 0; // 0: Todas, 1: Positivas, 2: Críticas
 
   @override
+  void initState() {
+    super.initState();
+    _movie = widget.movie;
+    _fetchFullDetails();
+  }
+
+  Future<void> _fetchFullDetails() async {
+    if (_movie.streamingProviders.isNotEmpty && _movie.reviews.isNotEmpty) {
+      return;
+    }
+    setState(() => _isLoadingProviders = true);
+    try {
+      final tmdb = context.read<TmdbService>();
+      final full = await tmdb.getMovieDetails(_movie.id);
+      if (mounted) {
+        setState(() {
+          _movie = full;
+          _isLoadingProviders = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('[MovieDetail] Error al consultar detalles de película: $e');
+      if (mounted) {
+        setState(() => _isLoadingProviders = false);
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final movie = widget.movie;
+    final movie = _movie;
     final favService = context.watch<FavoritesService>();
     final isFav = favService.isFavorite(movie.id);
 
@@ -284,7 +316,32 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
                     ],
                   ),
                   const SizedBox(height: 12),
-                  if (movie.streamingProviders.isNotEmpty) ...[
+                  if (_isLoadingProviders && movie.streamingProviders.isEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.surfaceElevated,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.surfaceBorder),
+                      ),
+                      child: Row(
+                        children: [
+                          const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.accent),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              'Consultando disponibilidad en plataformas de streaming...',
+                              style: AppTextStyles.caption,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (movie.streamingProviders.isNotEmpty) ...[
                     Wrap(
                       children: movie.streamingProviders.map((p) {
                         return StreamingProviderPill(provider: p);

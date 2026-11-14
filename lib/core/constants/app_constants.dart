@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.20.0';
-  static const int changeCounter = 21;
-  static const String appVersionDisplay = 'v1.20.0 • Cambio #21';
+  static const String appVersion = '1.21.0';
+  static const int changeCounter = 22;
+  static const String appVersionDisplay = 'v1.21.0 • Cambio #22';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -116,6 +116,11 @@ class AppConstants {
       'version': '1.20.0 (Cambio #21)',
       'title': 'Actualización Diaria de Catálogo (24h) y Filtro "Solo en Streaming" (Descartar Cine)',
       'description': 'Actualización automática del catálogo cada 24 horas sincronizada con el trending diario de TMDB (/trending/movie/day a las 00:00 UTC), expiración diaria de caché y rotación de páginas según el día del año; nuevo filtro "Solo en Streaming" en modo individual y salas grupales para omitir películas que solo están en cines y sugerir únicamente títulos disponibles en plataformas (Netflix, Disney+, Max, Prime Video, etc.); integración multi-región de JustWatch (CL, MX, ES, AR, CO, US); y pull-to-refresh en la pantalla de inicio.',
+    },
+    {
+      'version': '1.21.0 (Cambio #22)',
+      'title': 'Carga en Vivo de Plataformas de Streaming en Fichas & Enriquecimiento de Barajas',
+      'description': 'Resolución de visualización de proveedores de streaming (ej. La La Land): consulta reactiva y automática de plataformas JustWatch multi-región en MovieDetailScreen y RoomMatchScreen; enriquecimiento en paralelo de barajas en discoverMoviesByGenres para mostrar logotipos de plataformas directamente en las cartas de swipe; soporte expandido para suscripción (flatrate), gratis con anuncios (free/ads) y tiendas digitales (buy/rent); y mensaje descriptivo de carga en vivo.',
     },
   ];
 
