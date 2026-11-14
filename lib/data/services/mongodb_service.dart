@@ -601,6 +601,57 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
+  /// Asigna de forma atómica la primera película ganadora en MongoDB Atlas.
+  /// Implementa "First-Match-Wins": Si otro dispositivo ya registró una película ganadora,
+  /// Atlas rechaza la sobreescritura y devuelve la película canónica que ganó primero.
+  Future<MovieModel?> setCanonicalMatchMovie({
+    required String roomCode,
+    required MovieModel candidateMovie,
+    bool isRandomizer = false,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return candidateMovie;
+    }
+    try {
+      final collection = _db!.collection('rooms');
+      final cleanCode = roomCode.trim().toUpperCase();
+
+      // 1. Si Atlas ya tiene un ganador previo registrado, devolverlo inmediatamente
+      final existingDoc = await collection.findOne(where.eq('code', cleanCode));
+      if (existingDoc != null && existingDoc['matched_movie'] != null) {
+        debugPrint('[MongoDB] Ganador previo detectado en Atlas: ${existingDoc["matched_movie"]["title"]}');
+        return MovieModel.fromJson(Map<String, dynamic>.from(existingDoc['matched_movie'] as Map));
+      }
+
+      // 2. Intentar asignar atómicamente SOLO si matched_movie aún es null o no existe
+      final modifier = modify
+          .set('matched_movie', candidateMovie.toJson())
+          .set('is_randomizer_result', isRandomizer)
+          .set('status', RoomStatus.completed.name)
+          .set('phase', RoomPhase.result.name)
+          .set('matched_at', DateTime.now().toIso8601String())
+          .set('updated_at', DateTime.now().toIso8601String());
+
+      await collection.updateOne(
+        where.eq('code', cleanCode).and(
+          where.eq('matched_movie', null).or(where.notExists('matched_movie')),
+        ),
+        modifier,
+      );
+
+      // 3. Consultar la versión canónica definitiva guardada en Atlas
+      final finalDoc = await collection.findOne(where.eq('code', cleanCode));
+      if (finalDoc != null && finalDoc['matched_movie'] != null) {
+        return MovieModel.fromJson(Map<String, dynamic>.from(finalDoc['matched_movie'] as Map));
+      }
+      return candidateMovie;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al registrar película canónica en Atlas: $e');
+      return candidateMovie;
+    }
+  }
+
   /// Obtiene una sala grupal por su código de 6 caracteres desde MongoDB Atlas
   Future<RoomModel?> getRoomByCode(String code) async {
     if (!isConnected || _db == null) {

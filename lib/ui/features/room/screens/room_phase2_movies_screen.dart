@@ -29,6 +29,7 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
   List<MovieModel> _movies = [];
   int _currentIndex = 0;
   bool _isLoading = true;
+  bool _hasNavigatedToMatch = false;
 
   @override
   void initState() {
@@ -40,22 +41,42 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
     final roomService = context.read<RoomService>();
     final room = roomService.currentRoom;
     final tmdb = context.read<TmdbService>();
+    final currentUser = context.read<AuthService>().currentUser;
+    final isHost = currentUser != null && room != null && room.hostId == currentUser.id;
 
     // 1. Si la sala ya tiene la baraja compartida sincronizada en Atlas, usarla para que todos vean la misma secuencia
     if (room != null && room.movieDeck.isNotEmpty) {
-      setState(() {
-        _movies = room.movieDeck;
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _movies = room.movieDeck;
+          _isLoading = false;
+        });
+      }
       return;
     }
 
-    // 2. Si no, generar la baraja y guardarla en la sala para sincronizar a todos los dispositivos
+    // 2. Si es invitado y la baraja aún no se ha subido, esperar hasta 5 segundos a que el host la suba a Atlas
+    if (!isHost) {
+      for (int i = 0; i < 10; i++) {
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (!mounted) return;
+        final currentRoom = roomService.currentRoom;
+        if (currentRoom != null && currentRoom.movieDeck.isNotEmpty) {
+          setState(() {
+            _movies = currentRoom.movieDeck;
+            _isLoading = false;
+          });
+          return;
+        }
+      }
+    }
+
+    // 3. Generar la baraja desde TMDB
     final matchedGenreIds = room?.matchedCategories.map((c) => c.id).toList() ?? [];
     final pagesToFetch = (room?.excludeMatches ?? false) ? 4 : 3;
     var list = await tmdb.discoverMoviesByGenres(matchedGenreIds, pages: pagesToFetch);
 
-    // 3. Si el host activó "Considerar películas matches?", filtrar las películas ya vistas / matches del grupo
+    // 4. Si el host activó "Considerar películas matches?", filtrar las películas ya vistas / matches del grupo
     if (room != null && room.excludeMatches) {
       final excludedMovieIds = <int>{};
 
@@ -104,17 +125,20 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
       }
     }
 
-    if (room != null && list.isNotEmpty) {
+    // Si somos host, registrar en Atlas para todos
+    if (isHost && room != null && list.isNotEmpty) {
       await roomService.setRoomMovieDeck(list);
     }
 
-    setState(() {
-      _movies = list;
-      _isLoading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _movies = list;
+        _isLoading = false;
+      });
+    }
   }
 
-  void _onSwipe(bool approved) {
+  void _onSwipe(bool approved) async {
     if (_currentIndex >= _movies.length) return;
 
     final currentMovie = _movies[_currentIndex];
@@ -122,7 +146,7 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
     final currentUser = context.read<AuthService>().currentUser;
 
     if (currentUser != null) {
-      roomService.castMovieVote(
+      await roomService.castMovieVote(
         userId: currentUser.id,
         movie: currentMovie,
         approved: approved,
@@ -130,9 +154,11 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
       );
     }
 
-    setState(() {
-      _currentIndex++;
-    });
+    if (mounted) {
+      setState(() {
+        _currentIndex++;
+      });
+    }
   }
 
   Future<bool> _showExitConfirmation(
@@ -214,9 +240,14 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
       _isLoading = false;
     }
 
-    // Si ya hay resultado (match o randomizer), navegar
-    if (room != null && room.phase == RoomPhase.result && room.matchedMovie != null) {
+    // Si ya hay resultado (match o randomizer), navegar una única vez
+    if (!_hasNavigatedToMatch &&
+        room != null &&
+        room.phase == RoomPhase.result &&
+        room.matchedMovie != null) {
+      _hasNavigatedToMatch = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!context.mounted) return;
         Navigator.of(context).pushReplacement(
           MaterialPageRoute(
             builder: (_) => RoomMatchScreen(

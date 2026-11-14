@@ -1,9 +1,9 @@
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.18.0';
-  static const int changeCounter = 19;
-  static const String appVersionDisplay = 'v1.18.0 • Cambio #19';
+  static const String appVersion = '1.19.0';
+  static const int changeCounter = 20;
+  static const String appVersionDisplay = 'v1.19.0 • Cambio #20';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -106,6 +106,11 @@ class AppConstants {
       'version': '1.18.0 (Cambio #19)',
       'title': 'Géneros Visibles en Todos los Matches, Borrado Total & Deslizar para Eliminar (Spotify)',
       'description': 'Corrección de géneros cinematográficos en todas las películas de TMDB (auto-resolución desde genreIds en español); botón de "Borrar Historial" en AppBar con diálogo de confirmación; animación Dismissible estilo Spotify para deslizar a la izquierda con recuadro rojo y basurero al eliminar un título específico; y texto explicativo al pie de la lista de matches.',
+    },
+    {
+      'version': '1.19.0 (Cambio #20)',
+      'title': 'Candado Atómico First-Match-Wins en Atlas, Baraja Compartida Estricta y Ganador Canónico',
+      'description': 'Resolución de discrepancia en resultados grupales eliminando condiciones de carrera: candado atómico en MongoDB Atlas donde la primera película en alcanzar consenso unánime queda blindada permanentemente impidiendo sobreescrituras; sincronización estricta de la baraja generada por el anfitrión para todos los invitados; priorización cronológica del voto decisivo; y seguro de navegación única anti-rebote.',
     },
   ];
 

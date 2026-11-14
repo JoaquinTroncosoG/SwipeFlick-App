@@ -82,6 +82,24 @@ class RoomService extends ChangeNotifier {
         mergedMovieLikes[movieId] = set.toList();
       });
 
+      // 1. Si la sala remota en Atlas YA tiene una película ganadora registrada, adoptarla de inmediato
+      if (remoteRoom.matchedMovie != null) {
+        if (_currentRoom!.matchedMovie?.id != remoteRoom.matchedMovie!.id ||
+            _currentRoom!.phase != RoomPhase.result) {
+          debugPrint('[RoomService] Sincronizado match ganador desde Atlas: ${remoteRoom.matchedMovie!.title}');
+          _currentRoom = remoteRoom.copyWith(
+            categoryLikes: mergedCategoryLikes,
+            movieLikes: mergedMovieLikes,
+            matchedMovie: remoteRoom.matchedMovie,
+            isRandomizerResult: remoteRoom.isRandomizerResult,
+            phase: RoomPhase.result,
+            status: RoomStatus.completed,
+          );
+          notifyListeners();
+        }
+        return;
+      }
+
       bool hasChanges = remoteRoom.phase != _currentRoom!.phase ||
           remoteRoom.status != _currentRoom!.status ||
           remoteRoom.members.length != _currentRoom!.members.length ||
@@ -100,7 +118,7 @@ class RoomService extends ChangeNotifier {
       if (_currentRoom!.phase == RoomPhase.categories) {
         _evaluateCategoryConsensus(GenreModel.defaultGenres);
       } else if (_currentRoom!.phase == RoomPhase.movies && _currentRoom!.movieDeck.isNotEmpty) {
-        _evaluateMovieConsensus(_currentRoom!.movieDeck);
+        await _evaluateMovieConsensus(_currentRoom!.movieDeck);
       }
 
       if (hasChanges) {
@@ -474,24 +492,36 @@ class RoomService extends ChangeNotifier {
       );
     }
 
-    // 3. Evaluar si todos los miembros aprobaron esta película
-    _evaluateMovieConsensus(roomDeck);
+    // 3. Evaluar si todos los miembros aprobaron esta película (priorizando en orden cronológico)
+    await _evaluateMovieConsensus(roomDeck, justVotedMovie: approved ? movie : null);
 
     notifyListeners();
   }
 
   /// Verificar si todos los miembros aprobaron la misma película
-  void _evaluateMovieConsensus(List<MovieModel> roomDeck) {
+  Future<void> _evaluateMovieConsensus(List<MovieModel> roomDeck, {MovieModel? justVotedMovie}) async {
     if (_currentRoom == null) return;
     if (_currentRoom!.phase != RoomPhase.movies) return;
+    if (_currentRoom!.matchedMovie != null) return;
 
     final members = _currentRoom!.members;
     if (members.length < 2) return;
 
     final memberIds = members.map((m) => m.userId).toSet();
 
+    // Priorizar en primer lugar la película que acaba de recibir el like para respetar el orden cronológico
+    final candidates = <MovieModel>[];
+    if (justVotedMovie != null) {
+      candidates.add(justVotedMovie);
+    }
+    for (final m in roomDeck) {
+      if (!candidates.any((c) => c.id == m.id)) {
+        candidates.add(m);
+      }
+    }
+
     // 1. Comprobar si TODOS los miembros dieron like a alguna película
-    for (final movie in roomDeck) {
+    for (final movie in candidates) {
       final likers = _currentRoom!.movieLikes[movie.id] ?? [];
       final likersSet = likers.toSet();
 
@@ -499,22 +529,29 @@ class RoomService extends ChangeNotifier {
       final allApprovedInMembers = members.every((m) => m.movieVotes[movie.id] == true);
 
       if (allApprovedInLikes || allApprovedInMembers) {
-        debugPrint('[RoomService] ¡MATCH UNÁNIME DE PELÍCULA ENCONTRADO! ${movie.title}');
+        debugPrint('[RoomService] ¡CANDIDATO DE MATCH UNÁNIME DETECTADO! ${movie.title}');
+        MovieModel canonicalWinner = movie;
+
+        // Registrar atómicamente en Atlas con política First-Match-Wins para garantizar que todos vean la misma
+        if (_mongoService != null) {
+          final fromAtlas = await _mongoService!.setCanonicalMatchMovie(
+            roomCode: _currentRoom!.code,
+            candidateMovie: movie,
+            isRandomizer: false,
+          );
+          if (fromAtlas != null) {
+            canonicalWinner = fromAtlas;
+          }
+        }
+
+        debugPrint('[RoomService] ¡MATCH UNÁNIME CONFIRMADO PARA LA SALA! ${canonicalWinner.title}');
         _currentRoom = _currentRoom!.copyWith(
-          matchedMovie: movie,
+          matchedMovie: canonicalWinner,
           isRandomizerResult: false,
           status: RoomStatus.completed,
           phase: RoomPhase.result,
         );
 
-        if (_mongoService != null) {
-          _mongoService!.updateRoomPhase(
-            roomCode: _currentRoom!.code,
-            phase: RoomPhase.result,
-            matchedMovie: movie,
-            isRandomizer: false,
-          );
-        }
         notifyListeners();
         return;
       }
@@ -526,33 +563,37 @@ class RoomService extends ChangeNotifier {
     );
 
     if (allVotedAllMovies) {
-      triggerRandomizerFallback(roomDeck);
+      await triggerRandomizerFallback(roomDeck);
     }
   }
 
   /// Fallback Randomizer: Selecciona al azar una película de las categorías coincidentes
   Future<void> triggerRandomizerFallback(List<MovieModel> candidates) async {
     if (_currentRoom == null) return;
+    if (_currentRoom!.matchedMovie != null) return;
 
     final pool = candidates.isNotEmpty ? candidates : MockMoviesData.sampleMovies;
     final rnd = Random();
     final chosen = pool[rnd.nextInt(pool.length)];
 
+    MovieModel canonicalWinner = chosen;
+    if (_mongoService != null) {
+      final fromAtlas = await _mongoService!.setCanonicalMatchMovie(
+        roomCode: _currentRoom!.code,
+        candidateMovie: chosen,
+        isRandomizer: true,
+      );
+      if (fromAtlas != null) {
+        canonicalWinner = fromAtlas;
+      }
+    }
+
     _currentRoom = _currentRoom!.copyWith(
-      matchedMovie: chosen,
+      matchedMovie: canonicalWinner,
       isRandomizerResult: true,
       status: RoomStatus.completed,
       phase: RoomPhase.result,
     );
-
-    if (_mongoService != null) {
-      await _mongoService!.updateRoomPhase(
-        roomCode: _currentRoom!.code,
-        phase: RoomPhase.result,
-        matchedMovie: chosen,
-        isRandomizer: true,
-      );
-    }
 
     notifyListeners();
   }

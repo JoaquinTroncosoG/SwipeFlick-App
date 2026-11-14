@@ -249,5 +249,53 @@ void main() {
       expect(roomService.currentRoom!.matchedMovie!.id, testMovie.id);
       expect(roomService.currentRoom!.isRandomizerResult, false);
     });
+
+    test('Consenso First-Match-Wins: el primer título en recibir consenso total bloquea el resultado y rechaza sobreescrituras', () async {
+      final roomService = RoomService();
+      final user1 = UserModel.createDemo(name: 'Usuario 1');
+      final user2 = UserModel.createDemo(name: 'Usuario 2');
+
+      final room = await roomService.createRoom(host: user1, matchThreshold: 2);
+      await roomService.joinRoom(code: room.code, user: user2);
+      await roomService.advanceToMoviesPhase();
+
+      final movieA = MockMoviesData.sampleMovies[0];
+      final movieB = MockMoviesData.sampleMovies[1];
+
+      // Usuario 1 da like a movieA y movieB
+      await roomService.castMovieVote(
+        userId: user1.id,
+        movie: movieA,
+        approved: true,
+        roomDeck: MockMoviesData.sampleMovies,
+      );
+      await roomService.castMovieVote(
+        userId: user1.id,
+        movie: movieB,
+        approved: true,
+        roomDeck: MockMoviesData.sampleMovies,
+      );
+
+      // Usuario 2 da like a movieA completando el primer consenso unánime
+      await roomService.castMovieVote(
+        userId: user2.id,
+        movie: movieA,
+        approved: true,
+        roomDeck: MockMoviesData.sampleMovies,
+      );
+
+      expect(roomService.currentRoom!.phase, RoomPhase.result);
+      expect(roomService.currentRoom!.matchedMovie!.id, movieA.id);
+
+      // Si Usuario 2 vota después por movieB, el resultado canónico permanece en movieA
+      await roomService.castMovieVote(
+        userId: user2.id,
+        movie: movieB,
+        approved: true,
+        roomDeck: MockMoviesData.sampleMovies,
+      );
+
+      expect(roomService.currentRoom!.matchedMovie!.id, movieA.id);
+    });
   });
 }
