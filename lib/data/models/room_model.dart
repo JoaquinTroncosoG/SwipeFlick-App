@@ -129,6 +129,7 @@ class RoomModel {
   final int matchThreshold; // 1 a 5 categorías necesarias para coincidir
   final bool excludeMatches; // Considerar/excluir películas ya vistas o matches de los miembros
   final bool streamingOnly; // Solo películas en plataformas de streaming (descartar solo cine)
+  final List<int> selectedStreamingProviders; // IDs específicos de plataformas seleccionadas
   final RoomStatus status;
   final RoomPhase phase;
   final List<RoomMemberModel> members;
@@ -150,6 +151,7 @@ class RoomModel {
     this.matchThreshold = 2,
     this.excludeMatches = false,
     this.streamingOnly = false,
+    this.selectedStreamingProviders = const [],
     this.status = RoomStatus.waiting,
     this.phase = RoomPhase.lobby,
     this.members = const [],
@@ -174,6 +176,7 @@ class RoomModel {
     int? matchThreshold,
     bool? excludeMatches,
     bool? streamingOnly,
+    List<int>? selectedStreamingProviders,
     RoomStatus? status,
     RoomPhase? phase,
     List<RoomMemberModel>? members,
@@ -195,6 +198,7 @@ class RoomModel {
       matchThreshold: matchThreshold ?? this.matchThreshold,
       excludeMatches: excludeMatches ?? this.excludeMatches,
       streamingOnly: streamingOnly ?? this.streamingOnly,
+      selectedStreamingProviders: selectedStreamingProviders ?? this.selectedStreamingProviders,
       status: status ?? this.status,
       phase: phase ?? this.phase,
       members: members ?? this.members,
@@ -231,6 +235,11 @@ class RoomModel {
       matchThreshold: json['match_threshold'] as int? ?? json['matchThreshold'] as int? ?? 2,
       excludeMatches: json['exclude_matches'] as bool? ?? json['excludeMatches'] as bool? ?? false,
       streamingOnly: json['streaming_only'] as bool? ?? json['streamingOnly'] as bool? ?? false,
+      selectedStreamingProviders: (json['selected_streaming_providers'] as List? ??
+              json['selectedStreamingProviders'] as List? ??
+              [])
+          .map((e) => (e as num).toInt())
+          .toList(),
       status: RoomStatus.values.firstWhere(
         (e) => e.name == json['status'],
         orElse: () => RoomStatus.waiting,
@@ -285,6 +294,7 @@ class RoomModel {
       'match_threshold': matchThreshold,
       'exclude_matches': excludeMatches,
       'streaming_only': streamingOnly,
+      'selected_streaming_providers': selectedStreamingProviders,
       'status': status.name,
       'phase': phase.name,
       'members': members.map((m) => m.toJson()).toList(),

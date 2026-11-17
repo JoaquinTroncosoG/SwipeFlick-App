@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/utils/search_dictionary_helper.dart';
 import '../../../../core/widgets/cinema_avatar.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_image.dart';
@@ -71,28 +72,43 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
       }
     }
 
-    // 3. Generar la baraja desde TMDB
+    // 3. Generar la baraja desde TMDB adaptada a la región del host y con filtrado de plataformas
     final matchedGenreIds = room?.matchedCategories.map((c) => c.id).toList() ?? [];
-    final pagesToFetch = (room?.excludeMatches ?? false) ? 4 : 3;
+    final pagesToFetch = (room?.excludeMatches ?? false) ? 5 : 3;
     final streamingOnly = room?.streamingOnly ?? false;
+    final hostCountry = currentUser?.country ?? 'CL';
+
     var list = await tmdb.discoverMoviesByGenres(
       matchedGenreIds,
       pages: pagesToFetch,
       streamingOnly: streamingOnly,
+      providerIds: room?.selectedStreamingProviders ?? const [],
+      region: hostCountry,
     );
 
-    // 4. Si el host activó "Considerar películas matches?", filtrar las películas ya vistas / matches del grupo
+    // 4. Si el host activó "Considerar películas matches?", filtrar con blindaje estricto (ID + título normalizado)
     if (room != null && room.excludeMatches) {
       final excludedMovieIds = <int>{};
+      final excludedTitles = <String>{};
 
-      // A. Mi Lista y matches locales
+      void addExcluded(dynamic idRaw, String? titleRaw) {
+        if (idRaw != null) {
+          final idNum = idRaw is int ? idRaw : int.tryParse(idRaw.toString());
+          if (idNum != null) excludedMovieIds.add(idNum);
+        }
+        if (titleRaw != null && titleRaw.trim().isNotEmpty) {
+          excludedTitles.add(SearchDictionaryHelper.normalize(titleRaw));
+        }
+      }
+
+      // A. Mi Lista y matches locales del anfitrión
       try {
         final favsService = context.read<FavoritesService>();
         for (final m in favsService.favorites) {
-          excludedMovieIds.add(m.id);
+          addExcluded(m.id, m.title);
         }
         for (final m in favsService.matchesHistory) {
-          excludedMovieIds.add(m.id);
+          addExcluded(m.id, m.title);
         }
       } catch (_) {}
 
@@ -107,25 +123,29 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
         for (final email in memberEmails) {
           final cloudFavs = await mongo.getUserFavorites(email);
           for (final f in cloudFavs) {
-            final mid = f['id'] as int? ?? int.tryParse(f['id'].toString());
-            if (mid != null) excludedMovieIds.add(mid);
+            addExcluded(f['id'], f['title'] as String?);
           }
           final cloudMatches = await mongo.getUserMatchesHistory(email);
           for (final m in cloudMatches) {
-            final mid = m['id'] as int? ?? int.tryParse(m['id'].toString());
-            if (mid != null) excludedMovieIds.add(mid);
+            addExcluded(m['id'], m['title'] as String?);
           }
         }
       } catch (e) {
         debugPrint('[RoomPhase2] Error consultando listas de miembros: $e');
       }
 
-      // Excluir de la baraja compartida
-      if (excludedMovieIds.isNotEmpty) {
-        final filteredList = list.where((m) => !excludedMovieIds.contains(m.id)).toList();
+      // Excluir de la baraja compartida (doble validación por ID y título normalizado)
+      if (excludedMovieIds.isNotEmpty || excludedTitles.isNotEmpty) {
+        final filteredList = list.where((m) {
+          if (excludedMovieIds.contains(m.id)) return false;
+          final normTitle = SearchDictionaryHelper.normalize(m.title);
+          if (excludedTitles.contains(normTitle)) return false;
+          return true;
+        }).toList();
+
         if (filteredList.isNotEmpty) {
           list = filteredList;
-          debugPrint('[RoomPhase2] Excluidas ${excludedMovieIds.length} películas vistas/matches. Baraja final: ${list.length} películas.');
+          debugPrint('[RoomPhase2] Excluidas ${excludedMovieIds.length} películas por ID y ${excludedTitles.length} por título. Baraja final: ${list.length} películas.');
         }
       }
     }

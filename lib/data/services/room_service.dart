@@ -136,6 +136,7 @@ class RoomService extends ChangeNotifier {
     int matchThreshold = 2,
     bool excludeMatches = false,
     bool streamingOnly = false,
+    List<int> selectedStreamingProviders = const [],
   }) async {
     final code = _generateRoomCode();
     final now = DateTime.now();
@@ -161,6 +162,7 @@ class RoomService extends ChangeNotifier {
       matchThreshold: matchThreshold,
       excludeMatches: excludeMatches,
       streamingOnly: streamingOnly,
+      selectedStreamingProviders: selectedStreamingProviders,
       status: RoomStatus.waiting,
       phase: RoomPhase.lobby,
       members: [hostMember],

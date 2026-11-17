@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/search_dictionary_helper.dart';
 import '../models/genre_model.dart';
 import '../models/movie_model.dart';
@@ -148,17 +149,27 @@ class TmdbService {
   /// Filtrar películas por géneros aprobados en el swipe.
   /// Si [streamingOnly] es true, descarta títulos que solo están en cines y
   /// consulta únicamente películas disponibles en plataformas de streaming (Netflix, Disney+, Max, etc.).
+  /// Si [providerIds] contiene IDs de plataformas específicas, filtra estrictamente por esos servicios.
   /// Rota dinámicamente las páginas cada 24 horas según el día del año para garantizar variedad continua.
   Future<List<MovieModel>> discoverMoviesByGenres(
     List<int> genreIds, {
     int pages = 3,
     bool streamingOnly = false,
+    List<int> providerIds = const [],
     String region = 'CL',
   }) async {
+    final effectiveStreamingOnly = streamingOnly || providerIds.isNotEmpty;
+
     if (genreIds.isEmpty) {
       final trending = await getTrendingMovies();
       var all = List<MovieModel>.from(trending);
-      if (streamingOnly) {
+      if (providerIds.isNotEmpty) {
+        all = all.where((m) => m.streamingProviders.any((p) {
+          return providerIds.contains(p.id) ||
+              AppConstants.majorStreamingProviders.any((major) =>
+                  providerIds.contains(major.id) && major.matchesId(p.id));
+        })).toList();
+      } else if (streamingOnly) {
         all = all.where((m) => m.streamingProviders.isNotEmpty).toList();
       }
       all.shuffle();
@@ -173,7 +184,8 @@ class TmdbService {
       final dailyPageOffset = (dayOfYear % 4); // Rota páginas 1, 2, 3, 4 diariamente
       final startPage = 1 + dailyPageOffset;
 
-      final streamingTag = streamingOnly ? '_stream_${region}_' : '_all_';
+      final provTag = providerIds.isNotEmpty ? '_p${providerIds.join("-")}' : '';
+      final streamingTag = effectiveStreamingOnly ? '_stream_${region}$provTag\_' : '_all_';
       final cacheKey = _getDailyCacheKey('disc_${genreIds.join("_")}_${streamingTag}p${pages}_s$startPage');
       final cached = await _getFromCache(cacheKey);
       if (cached != null) {
@@ -189,8 +201,11 @@ class TmdbService {
 
       try {
         final List<MovieModel> accumulated = [];
-        final streamingParam = streamingOnly
-            ? '&with_watch_monetization_types=flatrate|free|ads&watch_region=$region'
+        final withProvidersParam = providerIds.isNotEmpty
+            ? '&with_watch_providers=${providerIds.join('|')}'
+            : '';
+        final streamingParam = effectiveStreamingOnly
+            ? '&with_watch_monetization_types=flatrate|free|ads&watch_region=$region$withProvidersParam'
             : '';
 
         for (int p = startPage; p < startPage + pages; p++) {
@@ -210,32 +225,12 @@ class TmdbService {
           }
         }
 
-        // Si streamingOnly devolvió pocos resultados en la región principal, complementar con catálogo MX
-        if (streamingOnly && accumulated.length < 8 && region != 'MX') {
-          try {
-            final fallbackUrl = Uri.parse(
-              '$_baseUrl/discover/movie?language=es-ES&sort_by=popularity.desc&include_adult=false&with_genres=$genresParam&with_watch_monetization_types=flatrate|free|ads&watch_region=MX&page=1&api_key=$key',
-            );
-            final resFb = await http.get(fallbackUrl).timeout(const Duration(seconds: 4));
-            if (resFb.statusCode == 200) {
-              final decodedFb = jsonDecode(resFb.body) as Map<String, dynamic>;
-              final resultsFb = decodedFb['results'] as List? ?? [];
-              for (final item in resultsFb) {
-                final movie = MovieModel.fromJson(item as Map<String, dynamic>);
-                if (movie.posterUrl.isNotEmpty && !accumulated.any((m) => m.id == movie.id)) {
-                  accumulated.add(movie);
-                }
-              }
-            }
-          } catch (_) {}
-        }
-
         if (accumulated.isNotEmpty) {
-          // Enriquecer en paralelo las primeras películas con sus proveedores de streaming (JustWatch)
+          // Enriquecer en paralelo las primeras películas con sus proveedores de streaming (JustWatch) en la región del usuario
           final enriched = await Future.wait(
-            accumulated.take(12).map((m) async {
+            accumulated.take(16).map((m) async {
               try {
-                final provs = await getWatchProviders(m.id);
+                final provs = await getWatchProviders(m.id, region: region);
                 if (provs.isNotEmpty) {
                   return m.copyWith(streamingProviders: provs);
                 }
@@ -245,7 +240,7 @@ class TmdbService {
           );
           final finalDeck = [
             ...enriched,
-            ...accumulated.skip(12),
+            ...accumulated.skip(16),
           ];
           await _saveToCache(cacheKey, jsonEncode(finalDeck.map((m) => m.toJson()).toList()));
           finalDeck.shuffle();
@@ -260,7 +255,13 @@ class TmdbService {
     var filtered = MockMoviesData.sampleMovies.where((movie) {
       return movie.genreIds.any((id) => genreIds.contains(id));
     }).toList();
-    if (streamingOnly) {
+    if (providerIds.isNotEmpty) {
+      filtered = filtered.where((m) => m.streamingProviders.any((p) {
+        return providerIds.contains(p.id) ||
+            AppConstants.majorStreamingProviders.any((major) =>
+                providerIds.contains(major.id) && major.matchesId(p.id));
+      })).toList();
+    } else if (streamingOnly) {
       filtered = filtered.where((m) => m.streamingProviders.isNotEmpty).toList();
     }
     filtered.shuffle();
@@ -301,8 +302,8 @@ class TmdbService {
     );
   }
 
-  /// Obtener proveedores de streaming actualizados de una película en Latinoamérica y España
-  Future<List<StreamingProviderModel>> getWatchProviders(int movieId) async {
+  /// Obtener proveedores de streaming actualizados de una película en la región especificada
+  Future<List<StreamingProviderModel>> getWatchProviders(int movieId, {String region = 'CL'}) async {
     final key = effectiveApiKey;
     if (key.isEmpty) return [];
 
@@ -313,7 +314,7 @@ class TmdbService {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         final results = data['results'];
         if (results is Map) {
-          return _parseProvidersFromResults(results);
+          return _parseProvidersFromResults(results, userRegion: region);
         }
       }
     } catch (e) {
@@ -323,67 +324,40 @@ class TmdbService {
   }
 
   /// Extrae proveedores tipo suscripción (flatrate), gratis/con anuncios (free/ads) o compra/alquiler digital
-  List<StreamingProviderModel> _parseProvidersFromResults(Map results) {
-    final priorityRegions = ['CL', 'MX', 'ES', 'AR', 'CO', 'US'];
+  /// estrictamente para la región/país del usuario para evitar recomendar servicios que no existen en su país
+  List<StreamingProviderModel> _parseProvidersFromResults(Map results, {String userRegion = 'CL'}) {
+    final cleanRegion = userRegion.trim().toUpperCase();
     final seenProviderIds = <int>{};
     final providers = <StreamingProviderModel>[];
 
-    // 1. Priorizar servicios de streaming por suscripción (flatrate) y gratuitos/ads
-    for (final region in priorityRegions) {
-      final regionData = results[region];
-      if (regionData is Map) {
-        for (final key in ['flatrate', 'ads', 'free']) {
+    // 1. Extraer proveedores de la región específica del usuario
+    final regionData = results[cleanRegion];
+    if (regionData is Map) {
+      // Priorizar suscripciones activas (flatrate), gratuitas (free) o con anuncios (ads)
+      for (final key in ['flatrate', 'ads', 'free']) {
+        if (regionData[key] is List) {
+          for (final p in regionData[key]) {
+            if (p is Map<String, dynamic>) {
+              final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
+              if (!seenProviderIds.contains(model.id)) {
+                seenProviderIds.add(model.id);
+                providers.add(model);
+              }
+            }
+          }
+        }
+      }
+
+      // Complemento digital (alquiler y compra) si no hay suscripción
+      if (providers.isEmpty) {
+        for (final key in ['buy', 'rent']) {
           if (regionData[key] is List) {
             for (final p in regionData[key]) {
               if (p is Map<String, dynamic>) {
-                final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
+                final model = StreamingProviderModel.fromJson(p, type: key);
                 if (!seenProviderIds.contains(model.id)) {
                   seenProviderIds.add(model.id);
                   providers.add(model);
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 2. Si no se encontraron en regiones prioritarias, revisar en cualquier otra región
-    if (providers.isEmpty) {
-      for (final entry in results.entries) {
-        final regionData = entry.value;
-        if (regionData is Map) {
-          for (final key in ['flatrate', 'ads', 'free']) {
-            if (regionData[key] is List) {
-              for (final p in regionData[key]) {
-                if (p is Map<String, dynamic>) {
-                  final model = StreamingProviderModel.fromJson(p, type: 'flatrate');
-                  if (!seenProviderIds.contains(model.id)) {
-                    seenProviderIds.add(model.id);
-                    providers.add(model);
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // 3. Complemento digital si no hay suscripción activa: tiendas de alquiler y compra digital
-    if (providers.isEmpty) {
-      for (final region in priorityRegions) {
-        final regionData = results[region];
-        if (regionData is Map) {
-          for (final key in ['buy', 'rent']) {
-            if (regionData[key] is List) {
-              for (final p in regionData[key]) {
-                if (p is Map<String, dynamic>) {
-                  final model = StreamingProviderModel.fromJson(p, type: key);
-                  if (!seenProviderIds.contains(model.id)) {
-                    seenProviderIds.add(model.id);
-                    providers.add(model);
-                  }
                 }
               }
             }
@@ -396,7 +370,7 @@ class TmdbService {
   }
 
   /// Obtener detalle completo de película (con streaming providers JustWatch y reviews)
-  Future<MovieModel> getMovieDetails(int movieId) async {
+  Future<MovieModel> getMovieDetails(int movieId, {String region = 'CL'}) async {
     final local = MockMoviesData.sampleMovies.cast<MovieModel?>().firstWhere(
           (m) => m?.id == movieId,
           orElse: () => null,
@@ -415,11 +389,11 @@ class TmdbService {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
 
-        // Parsear providers JustWatch multi-región
+        // Parsear providers JustWatch adaptados a la región del usuario
         List<StreamingProviderModel> providers = [];
         final results = data['watch/providers']?['results'];
         if (results is Map) {
-          providers = _parseProvidersFromResults(results);
+          providers = _parseProvidersFromResults(results, userRegion: region);
         }
 
         // Parsear reviews

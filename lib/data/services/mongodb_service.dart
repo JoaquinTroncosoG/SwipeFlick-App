@@ -230,6 +230,7 @@ class MongoDbService extends ChangeNotifier {
     required String email,
     required String passwordHash,
     String? avatarUrl,
+    String country = 'CL',
     bool isVerified = true,
     String? otpCode,
   }) async {
@@ -260,6 +261,7 @@ class MongoDbService extends ChangeNotifier {
           .set('email', safeEmail)
           .set('passwordHash', finalHash)
           .set('avatarUrl', avatarUrl ?? '')
+          .set('country', country)
           .set('isVerified', isVerified)
           .set('updatedAt', nowStr)
           .setOnInsert('createdAt', nowStr);
@@ -434,6 +436,33 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
+  /// Actualizar país/región del catálogo del usuario en MongoDB Atlas
+  Future<bool> updateUserCountry({
+    required String email,
+    required String country,
+  }) async {
+    if (!isConnected || _db == null) {
+      final ok = await ensureConnected();
+      if (!ok || _db == null) return false;
+    }
+    final safeEmail = SecurityHelper.sanitizeEmail(email);
+    if (safeEmail == null) return false;
+
+    try {
+      final collection = _db!.collection('users');
+      final result = await collection.updateOne(
+        where.eq('email', safeEmail),
+        modify
+            .set('country', country.toUpperCase())
+            .set('updatedAt', DateTime.now().toIso8601String()),
+      );
+      return result.isSuccess;
+    } catch (e) {
+      debugPrint('[MongoDB] Error al actualizar país en Atlas: $e');
+      return false;
+    }
+  }
+
   // ==========================================
   // OPERACIONES DE SALAS (Colección: rooms)
   // ==========================================
@@ -456,6 +485,7 @@ class MongoDbService extends ChangeNotifier {
           .set('match_threshold', room.matchThreshold)
           .set('exclude_matches', room.excludeMatches)
           .set('streaming_only', room.streamingOnly)
+          .set('selected_streaming_providers', room.selectedStreamingProviders)
           .set('status', room.status.name)
           .set('phase', room.phase.name)
           .set('members', data['members'])

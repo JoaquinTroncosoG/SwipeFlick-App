@@ -102,12 +102,14 @@ class _LoginScreenState extends State<LoginScreen> {
       final userDoc = await mongo.findUserByEmail(safeEmail);
       final remoteUsername = userDoc?['username'] as String?;
       final remoteAvatar = userDoc?['avatarUrl'] as String?;
+      final remoteCountry = userDoc?['country'] as String?;
 
       await auth.signIn(
         email: safeEmail,
         password: password,
         remoteUsername: remoteUsername,
         remoteAvatarUrl: remoteAvatar,
+        remoteCountry: remoteCountry,
       );
 
       if (mounted) {

@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
+import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_snackbar.dart';
@@ -24,6 +25,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  String _selectedCountryCode = 'CL';
 
   @override
   void dispose() {
@@ -58,6 +60,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       username: username,
       email: email,
       passwordHash: password,
+      country: _selectedCountryCode,
       isVerified: false,
       otpCode: otpCode,
     );
@@ -87,6 +90,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         username: username,
         email: email,
         password: password,
+        country: _selectedCountryCode,
         initialOtp: otpCode,
       );
     }
@@ -96,6 +100,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String username,
     required String email,
     required String password,
+    required String country,
     required String initialOtp,
   }) {
     String currentOtp = initialOtp;
@@ -280,6 +285,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     username: username,
                     email: email,
                     password: password,
+                    country: country,
                   );
 
                   if (success) {
@@ -292,6 +298,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                         email: user.email,
                         passwordHash: password,
                         avatarUrl: user.avatarUrl,
+                        country: country,
                         isVerified: true,
                       );
 
@@ -369,6 +376,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 decoration: const InputDecoration(
                   hintText: 'tu@email.com',
                   prefixIcon: Icon(Icons.email_outlined, color: AppColors.accent),
+                ),
+              ),
+              const SizedBox(height: 18),
+
+              Text('País / Región del Catálogo', style: AppTextStyles.bodyMedium.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.surfaceBorder),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: _selectedCountryCode,
+                    isExpanded: true,
+                    dropdownColor: AppColors.surfaceElevated,
+                    icon: const Icon(Icons.keyboard_arrow_down_rounded, color: AppColors.accent),
+                    items: AppConstants.supportedCountries.map((c) {
+                      return DropdownMenuItem<String>(
+                        value: c.code,
+                        child: Row(
+                          children: [
+                            Text(c.flag, style: const TextStyle(fontSize: 20)),
+                            const SizedBox(width: 12),
+                            Text(c.name, style: AppTextStyles.bodyMedium),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: Text(
+                                c.code,
+                                style: AppTextStyles.caption.copyWith(color: AppColors.accent, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() => _selectedCountryCode = val);
+                      }
+                    },
+                  ),
                 ),
               ),
               const SizedBox(height: 18),

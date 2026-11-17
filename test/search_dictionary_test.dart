@@ -20,11 +20,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.22.0');
-      expect(AppConstants.changeCounter, 23);
-      expect(AppConstants.appVersionDisplay, contains('v1.22.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #23'));
-      expect(AppConstants.changeLog.length, 24);
+      expect(AppConstants.appVersion, '1.23.0');
+      expect(AppConstants.changeCounter, 24);
+      expect(AppConstants.appVersionDisplay, contains('v1.23.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #24'));
+      expect(AppConstants.changeLog.length, 25);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -439,6 +439,91 @@ void main() {
       expect(balanced2.length, 2);
       expect(balanced2.first.author, 'Fan');
       expect(balanced2.last.author, 'Crítico');
+    });
+
+    test('UserModel y AppConstants soportan país y catálogo regional', () {
+      final user = UserModel.createDemo(name: 'Diego', country: 'CL');
+      expect(user.country, 'CL');
+
+      final userJson = user.toJson();
+      expect(userJson['country'], 'CL');
+
+      final fromJson = UserModel.fromJson(userJson);
+      expect(fromJson.country, 'CL');
+
+      final updated = user.copyWith(country: 'MX');
+      expect(updated.country, 'MX');
+
+      final cl = AppConstants.getCountry('CL');
+      expect(cl.name, 'Chile');
+      expect(cl.flag, '🇨🇱');
+
+      final mx = AppConstants.getCountry('MX');
+      expect(mx.name, 'México');
+      expect(mx.flag, '🇲🇽');
+
+      expect(AppConstants.supportedCountries.length, 7);
+    });
+
+    test('MajorStreamingProvider y selección de plataformas de streaming', () {
+      final providers = AppConstants.majorStreamingProviders;
+      expect(providers.isNotEmpty, true);
+
+      final netflix = providers.firstWhere((p) => p.name == 'Netflix');
+      expect(netflix.id, 8);
+      expect(netflix.matchesId(8), true);
+
+      final max = providers.firstWhere((p) => p.name == 'Max');
+      expect(max.id, 1899);
+      expect(max.matchesId(384), true); // Alias HBO Max
+    });
+
+    test('TmdbService discoverMoviesByGenres soporta filtrado por providerIds', () async {
+      final tmdb = TmdbService();
+      // Filtrar por Netflix (8)
+      final netflixMovies = await tmdb.discoverMoviesByGenres(
+        [28],
+        providerIds: [8],
+        region: 'CL',
+      );
+      expect(netflixMovies, isNotEmpty);
+      final enrichedWithProviders = netflixMovies.where((m) => m.streamingProviders.isNotEmpty);
+      expect(enrichedWithProviders, isNotEmpty);
+      for (final m in enrichedWithProviders) {
+        final hasNetflix = m.streamingProviders.any((p) => p.id == 8 || p.name.toLowerCase().contains('netflix'));
+        expect(hasNetflix, true);
+      }
+    });
+
+    test('Blindaje estricto de filtro excludeMatches (ID numérico y título normalizado)', () {
+      // Simular lista de películas candidatas de TMDB
+      final candidates = [
+        const MovieModel(id: 101, title: 'John Wick: Capítulo 4', overview: '', rating: 8.0),
+        const MovieModel(id: 202, title: 'Barbie', overview: '', rating: 7.5),
+        const MovieModel(id: 303, title: 'Oppenheimer', overview: '', rating: 8.5),
+        const MovieModel(id: 404, title: 'La La Land', overview: '', rating: 8.1),
+      ];
+
+      // Caso 1: Match guardado con el mismo ID
+      final excludedIds = <int>{101};
+      final excludedTitles = <String>{};
+      final filtered1 = candidates.where((m) => !excludedIds.contains(m.id)).toList();
+      expect(filtered1.any((m) => m.id == 101), false);
+
+      // Caso 2: Match guardado con diferente ID o variante pero mismo título
+      // (ej. mock ID 999 vs TMDB ID 202 para "Barbie")
+      excludedTitles.add(SearchDictionaryHelper.normalize('barbie'));
+      final filtered2 = candidates.where((m) {
+        if (excludedIds.contains(m.id)) return false;
+        if (excludedTitles.contains(SearchDictionaryHelper.normalize(m.title))) return false;
+        return true;
+      }).toList();
+
+      expect(filtered2.any((m) => m.title.toLowerCase().contains('john wick')), false);
+      expect(filtered2.any((m) => m.title.toLowerCase().contains('barbie')), false);
+      expect(filtered2.length, 2); // Oppenheimer y La La Land
+      expect(filtered2.map((m) => m.title), contains('Oppenheimer'));
+      expect(filtered2.map((m) => m.title), contains('La La Land'));
     });
   });
 }

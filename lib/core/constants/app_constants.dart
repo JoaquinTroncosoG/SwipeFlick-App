@@ -1,9 +1,44 @@
+class CountryInfo {
+  final String code;
+  final String name;
+  final String flag;
+
+  const CountryInfo({
+    required this.code,
+    required this.name,
+    required this.flag,
+  });
+}
+
+class MajorStreamingProvider {
+  final int id;
+  final String name;
+  final String logoPath;
+  final List<int> aliasIds;
+
+  const MajorStreamingProvider({
+    required this.id,
+    required this.name,
+    required this.logoPath,
+    this.aliasIds = const [],
+  });
+
+  String get fullLogoUrl {
+    if (logoPath.startsWith('http')) return logoPath;
+    return 'https://image.tmdb.org/t/p/w154$logoPath';
+  }
+
+  bool matchesId(int providerId) {
+    return id == providerId || aliasIds.contains(providerId);
+  }
+}
+
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.22.0';
-  static const int changeCounter = 23;
-  static const String appVersionDisplay = 'v1.22.0 • Cambio #23';
+  static const String appVersion = '1.23.0';
+  static const int changeCounter = 24;
+  static const String appVersionDisplay = 'v1.23.0 • Cambio #24';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -127,6 +162,77 @@ class AppConstants {
       'title': 'Plataformas de Streaming Plegables y Reseñas Balanceadas con Paginación',
       'description': 'Optimización visual en fichas cinematográficas: visualización inicial de 3 plataformas de streaming con botón desplegable "Mostrar más plataformas (+X más)" / "Mostrar menos"; garantía de reseñas balanceadas (al menos 1 positiva y 1 crítica/constructiva para cualquier película del catálogo, incluyendo títulos animados o de nicho como El Grinch); consulta global de reseñas en TMDB; y paginación progresiva de comentarios con botones interactivos de expansión.',
     },
+    {
+      'version': '1.23.0 (Cambio #24)',
+      'title': 'País de Registro, Filtro Interactivo de Plataformas & Blindaje de Matches',
+      'description': 'Selección de país en registro y editable en Perfil (Chile 🇨🇱, México 🇲🇽, España 🇪🇸, Argentina 🇦🇷, Colombia 🇨🇴, Perú 🇵🇪, EE.UU. 🇺🇸) para adaptar el catálogo a la región del usuario; nuevo selector interactivo de plataformas de streaming con tarjetas iluminadas en dorado para filtrar por servicios contratados (Netflix, Disney+, Max, Prime Video, Apple TV+, etc.) en modo individual y salas grupales; incorporación de filtro de exclusión de matches en swipe solitario; y blindaje estricto del filtro "¿Considerar películas matches?" con doble validación por ID numérico y título normalizado.',
+    },
+  ];
+
+  // Países Soportados para Catálogo y Streaming
+  static const List<CountryInfo> supportedCountries = [
+    CountryInfo(code: 'CL', name: 'Chile', flag: '🇨🇱'),
+    CountryInfo(code: 'MX', name: 'México', flag: '🇲🇽'),
+    CountryInfo(code: 'ES', name: 'España', flag: '🇪🇸'),
+    CountryInfo(code: 'AR', name: 'Argentina', flag: '🇦🇷'),
+    CountryInfo(code: 'CO', name: 'Colombia', flag: '🇨🇴'),
+    CountryInfo(code: 'PE', name: 'Perú', flag: '🇵🇪'),
+    CountryInfo(code: 'US', name: 'Estados Unidos', flag: '🇺🇸'),
+  ];
+
+  static CountryInfo getCountry(String? code) {
+    if (code == null || code.isEmpty) return supportedCountries.first;
+    return supportedCountries.firstWhere(
+      (c) => c.code.toUpperCase() == code.toUpperCase(),
+      orElse: () => supportedCountries.first,
+    );
+  }
+
+  // Principales Plataformas de Streaming (JustWatch / TMDB)
+  static const List<MajorStreamingProvider> majorStreamingProviders = [
+    MajorStreamingProvider(
+      id: 8,
+      name: 'Netflix',
+      logoPath: '/pbpMk2JmcoNnQwx5JGpXngfoWtp.jpg',
+    ),
+    MajorStreamingProvider(
+      id: 337,
+      name: 'Disney+',
+      logoPath: '/7rwgEs15tFwyR9NPQ5vpzxTj19Q.jpg',
+      aliasIds: [619], // Star+
+    ),
+    MajorStreamingProvider(
+      id: 1899,
+      name: 'Max',
+      logoPath: '/aS2zvJWn9mwiCOeaaCkIh4w00d8.jpg',
+      aliasIds: [384], // HBO Max
+    ),
+    MajorStreamingProvider(
+      id: 119,
+      name: 'Prime Video',
+      logoPath: '/emthp39XA2vsXH92hmV0ATt1P3e.jpg',
+      aliasIds: [9, 2],
+    ),
+    MajorStreamingProvider(
+      id: 350,
+      name: 'Apple TV+',
+      logoPath: '/peURlLlr8jggOwK53fJ5wdQl05y.jpg',
+    ),
+    MajorStreamingProvider(
+      id: 531,
+      name: 'Paramount+',
+      logoPath: '/h5DcR0J2EkeEzJgg2Ufi2LTISev.jpg',
+    ),
+    MajorStreamingProvider(
+      id: 283,
+      name: 'Crunchyroll',
+      logoPath: '/mXeC4Trcgdbt1Y9bwrEZmN2q9ug.jpg',
+    ),
+    MajorStreamingProvider(
+      id: 300,
+      name: 'Pluto TV',
+      logoPath: '/p00zM5518b0U7Xg8g343i9F2g68.jpg',
+    ),
   ];
 
   // TMDB URLs

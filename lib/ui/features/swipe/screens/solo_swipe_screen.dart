@@ -3,12 +3,16 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/utils/search_dictionary_helper.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_image.dart';
+import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../core/widgets/rating_badge.dart';
+import '../../../../core/widgets/streaming_filter_sheet.dart';
 import '../../../../core/widgets/swipe_card.dart';
 import '../../../../data/models/genre_model.dart';
 import '../../../../data/models/movie_model.dart';
+import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/tmdb_service.dart';
 import '../../movie_detail/screens/movie_detail_screen.dart';
@@ -34,6 +38,8 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
   final List<GenreModel> _approvedGenres = [];
   int _categoryDeckIndex = 0;
   bool _streamingOnly = false;
+  List<int> _selectedProviderIds = [];
+  bool _excludeMatches = true;
 
   List<MovieModel> _movieDeck = [];
   int _movieDeckIndex = 0;
@@ -79,11 +85,45 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
   Future<void> _transitionToMoviesStep() async {
     setState(() => _isLoading = true);
     final tmdb = context.read<TmdbService>();
+    final currentUser = context.read<AuthService>().currentUser;
+    final userCountry = currentUser?.country ?? 'CL';
     final genreIds = _approvedGenres.map((g) => g.id).toList();
-    final movies = await tmdb.discoverMoviesByGenres(
+    final pagesToFetch = _excludeMatches ? 4 : 3;
+
+    var movies = await tmdb.discoverMoviesByGenres(
       genreIds,
+      pages: pagesToFetch,
       streamingOnly: _streamingOnly,
+      providerIds: _selectedProviderIds,
+      region: userCountry,
     );
+
+    // Si activó excluir matches/vistas en solitario: blindaje estricto por ID y título normalizado
+    if (_excludeMatches) {
+      final favsService = context.read<FavoritesService>();
+      final excludedMovieIds = <int>{};
+      final excludedTitles = <String>{};
+
+      for (final m in favsService.favorites) {
+        excludedMovieIds.add(m.id);
+        excludedTitles.add(SearchDictionaryHelper.normalize(m.title));
+      }
+      for (final m in favsService.matchesHistory) {
+        excludedMovieIds.add(m.id);
+        excludedTitles.add(SearchDictionaryHelper.normalize(m.title));
+      }
+
+      final filtered = movies.where((m) {
+        if (excludedMovieIds.contains(m.id)) return false;
+        final norm = SearchDictionaryHelper.normalize(m.title);
+        if (excludedTitles.contains(norm)) return false;
+        return true;
+      }).toList();
+
+      if (filtered.isNotEmpty) {
+        movies = filtered;
+      }
+    }
 
     setState(() {
       _movieDeck = List.from(movies);
@@ -184,9 +224,9 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
                   // Barra de progreso sutil
                   _buildProgressBar(),
 
-                  // Selector rápido de filtro Streaming (Paso 1)
+                  // Selector rápido de filtros Streaming y Matches (Paso 1)
                   if (_currentStep == SoloSwipeStep.categories)
-                    _buildStreamingFilterBadge(),
+                    _buildFilterBar(),
 
                   // Contenedor principal de tarjetas tipo Tinder
                   Expanded(
@@ -227,52 +267,140 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
     );
   }
 
-  Widget _buildStreamingFilterBadge() {
-    return GestureDetector(
-      onTap: () {
-        setState(() {
-          _streamingOnly = !_streamingOnly;
-        });
-      },
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(top: 8, bottom: 2, left: 20, right: 20),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: _streamingOnly ? AppColors.accentSubtle : AppColors.surfaceElevated,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: _streamingOnly ? AppColors.accent : AppColors.surfaceBorder,
-            width: _streamingOnly ? 1.5 : 1.0,
-          ),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _streamingOnly ? Icons.live_tv_rounded : Icons.tv_off_rounded,
-              size: 16,
-              color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              _streamingOnly
-                  ? 'Filtro: Solo en Streaming (Excluir cine)'
-                  : 'Filtro: Todo el catálogo (Cine + Streaming)',
-              style: AppTextStyles.caption.copyWith(
-                color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
-                fontWeight: _streamingOnly ? FontWeight.bold : FontWeight.normal,
+  Widget _buildFilterBar() {
+    final currentUser = context.watch<AuthService>().currentUser;
+    final country = AppConstants.getCountry(currentUser?.country);
+
+    String streamingLabel;
+    if (!_streamingOnly) {
+      streamingLabel = 'Cine + Streaming';
+    } else if (_selectedProviderIds.isEmpty) {
+      streamingLabel = 'Todo Streaming (${country.code})';
+    } else {
+      streamingLabel = '${_selectedProviderIds.length} plataformas (${country.code})';
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, bottom: 2, left: 16, right: 16),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          // Chip interactivo de Servicios de Streaming
+          Expanded(
+            child: GestureDetector(
+              onTap: () {
+                StreamingFilterSheet.show(
+                  context,
+                  initialSelected: _selectedProviderIds,
+                  countryCode: currentUser?.country ?? 'CL',
+                  onApply: (selected) {
+                    setState(() {
+                      _selectedProviderIds = selected;
+                      _streamingOnly = true;
+                    });
+                  },
+                );
+              },
+              onLongPress: () {
+                setState(() {
+                  _streamingOnly = !_streamingOnly;
+                });
+                CinemaSnackBar.show(
+                  context,
+                  _streamingOnly
+                      ? 'Filtro activado: Solo títulos en streaming'
+                      : 'Filtro desactivado: Incluyendo películas de cine',
+                  duration: const Duration(seconds: 2),
+                );
+              },
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: _streamingOnly ? AppColors.accentSubtle : AppColors.surfaceElevated,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: _streamingOnly ? AppColors.accent : AppColors.surfaceBorder,
+                    width: _streamingOnly ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      _streamingOnly ? Icons.live_tv_rounded : Icons.tune_rounded,
+                      size: 15,
+                      color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+                    ),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        streamingLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.caption.copyWith(
+                          color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+                          fontWeight: _streamingOnly ? FontWeight.bold : FontWeight.normal,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    const Icon(Icons.keyboard_arrow_down_rounded, size: 14, color: AppColors.accent),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: 6),
-            Icon(
-              _streamingOnly ? Icons.check_circle_rounded : Icons.tune_rounded,
-              size: 14,
-              color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+          ),
+          const SizedBox(width: 8),
+
+          // Chip interactivo para Excluir Películas Vistas / Matches
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _excludeMatches = !_excludeMatches;
+              });
+              CinemaSnackBar.show(
+                context,
+                _excludeMatches
+                    ? 'Excluyendo títulos de tu lista y matches anteriores'
+                    : 'Mostrando todo el catálogo sin exclusiones',
+                duration: const Duration(seconds: 2),
+              );
+            },
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: _excludeMatches ? AppColors.accentSubtle : AppColors.surfaceElevated,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: _excludeMatches ? AppColors.accent : AppColors.surfaceBorder,
+                  width: _excludeMatches ? 1.5 : 1.0,
+                ),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _excludeMatches ? Icons.auto_awesome_rounded : Icons.history_rounded,
+                    size: 15,
+                    color: _excludeMatches ? AppColors.accent : AppColors.textSecondary,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    _excludeMatches ? 'Sin repetidas' : 'Con repetidas',
+                    style: AppTextStyles.caption.copyWith(
+                      color: _excludeMatches ? AppColors.accent : AppColors.textSecondary,
+                      fontWeight: _excludeMatches ? FontWeight.bold : FontWeight.normal,
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

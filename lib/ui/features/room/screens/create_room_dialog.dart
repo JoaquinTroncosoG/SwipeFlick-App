@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_button.dart';
+import '../../../../core/widgets/streaming_filter_sheet.dart';
 import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/room_service.dart';
 
@@ -21,6 +22,7 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
   int _selectedMatchThreshold = AppConstants.defaultMatchThreshold;
   bool _excludeMatches = false;
   bool _streamingOnly = false;
+  List<int> _selectedStreamingProviders = [];
   bool _isCreating = false;
 
   static const List<int> _quickPresets = [2, 3, 4, 5, 6, 8, 10, 15, 20];
@@ -278,45 +280,109 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
                     width: _streamingOnly ? 1.5 : 1.0,
                   ),
                 ),
-                child: Row(
+                child: Column(
                   children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: _streamingOnly ? AppColors.accentSubtle : AppColors.surface,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Icon(
-                        Icons.live_tv_rounded,
-                        color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
-                        size: 20,
-                      ),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _streamingOnly ? AppColors.accentSubtle : AppColors.surface,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Icon(
+                            Icons.live_tv_rounded,
+                            color: _streamingOnly ? AppColors.accent : AppColors.textSecondary,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '¿Solo en Streaming?',
+                                style: AppTextStyles.bodyMedium.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: _streamingOnly ? AppColors.accent : AppColors.textPrimary,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Descarta películas que solo están en cines y sugiere únicamente títulos disponibles en plataformas (Netflix, Disney+, Max, etc.).',
+                                style: AppTextStyles.caption.copyWith(fontSize: 11),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _streamingOnly,
+                          activeColor: AppColors.accent,
+                          onChanged: (val) => setState(() => _streamingOnly = val),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '¿Solo en Streaming?',
-                            style: AppTextStyles.bodyMedium.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: _streamingOnly ? AppColors.accent : AppColors.textPrimary,
+                    if (_streamingOnly) ...[
+                      const SizedBox(height: 10),
+                      InkWell(
+                        onTap: () {
+                          StreamingFilterSheet.show(
+                            context,
+                            initialSelected: _selectedStreamingProviders,
+                            countryCode: currentUser?.country ?? 'CL',
+                            onApply: (selected) {
+                              setState(() {
+                                _selectedStreamingProviders = selected;
+                              });
+                            },
+                          );
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: _selectedStreamingProviders.isNotEmpty
+                                ? AppColors.accent.withValues(alpha: 0.15)
+                                : AppColors.surface,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: _selectedStreamingProviders.isNotEmpty
+                                  ? AppColors.accent
+                                  : AppColors.surfaceBorder,
                             ),
                           ),
-                          const SizedBox(height: 2),
-                          Text(
-                            'Descarta películas que solo están en cines y sugiere únicamente títulos disponibles en plataformas (Netflix, Disney+, Max, etc.).',
-                            style: AppTextStyles.caption.copyWith(fontSize: 11),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _selectedStreamingProviders.isNotEmpty
+                                    ? Icons.check_circle_rounded
+                                    : Icons.tune_rounded,
+                                size: 16,
+                                color: AppColors.accent,
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _selectedStreamingProviders.isNotEmpty
+                                      ? '${_selectedStreamingProviders.length} plataformas específicas seleccionadas'
+                                      : 'Todas las plataformas (Toca para elegir tus servicios)',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: _selectedStreamingProviders.isNotEmpty
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                    fontWeight: _selectedStreamingProviders.isNotEmpty
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.arrow_forward_ios_rounded, size: 12, color: AppColors.accent),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
-                    ),
-                    Switch(
-                      value: _streamingOnly,
-                      activeColor: AppColors.accent,
-                      onChanged: (val) => setState(() => _streamingOnly = val),
-                    ),
+                    ],
                   ],
                 ),
               ),
@@ -339,6 +405,7 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
                     matchThreshold: _selectedMatchThreshold,
                     excludeMatches: _excludeMatches,
                     streamingOnly: _streamingOnly,
+                    selectedStreamingProviders: _selectedStreamingProviders,
                   );
                   if (mounted) {
                     setState(() => _isCreating = false);

@@ -10,6 +10,7 @@ import '../../../../core/widgets/rating_badge.dart';
 import '../../../../core/widgets/streaming_provider_pill.dart';
 import '../../../../data/models/movie_model.dart';
 import '../../../../data/models/review_model.dart';
+import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/tmdb_service.dart';
 
@@ -44,7 +45,9 @@ class _MovieDetailScreenState extends State<MovieDetailScreen> {
     setState(() => _isLoadingProviders = true);
     try {
       final tmdb = context.read<TmdbService>();
-      final full = await tmdb.getMovieDetails(_movie.id);
+      final currentUser = context.read<AuthService>().currentUser;
+      final userCountry = currentUser?.country ?? 'CL';
+      final full = await tmdb.getMovieDetails(_movie.id, region: userCountry);
       if (mounted) {
         setState(() {
           _movie = full;

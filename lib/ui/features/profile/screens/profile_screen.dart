@@ -269,6 +269,97 @@ class _ProfileScreenState extends State<ProfileScreen> {
     );
   }
 
+  void _showChangeCountrySheet(BuildContext context) {
+    final auth = context.read<AuthService>();
+    final currentCountryCode = auth.currentUser?.country ?? 'CL';
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.surfaceBorder,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const Icon(Icons.public_rounded, color: AppColors.accent, size: 22),
+                    const SizedBox(width: 10),
+                    Text(
+                      'País / Región del Catálogo',
+                      style: AppTextStyles.h2.copyWith(fontSize: 18),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'El catálogo y la disponibilidad de plataformas de streaming se adaptan a tu país:',
+                  style: AppTextStyles.bodySecondary.copyWith(fontSize: 13),
+                ),
+                const SizedBox(height: 16),
+                ...AppConstants.supportedCountries.map((country) {
+                  final isSelected = country.code.toUpperCase() == currentCountryCode.toUpperCase();
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    decoration: BoxDecoration(
+                      color: isSelected ? AppColors.accentSubtle : AppColors.surfaceElevated,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: isSelected ? AppColors.accent : AppColors.surfaceBorder,
+                        width: isSelected ? 1.5 : 1.0,
+                      ),
+                    ),
+                    child: ListTile(
+                      leading: Text(country.flag, style: const TextStyle(fontSize: 24)),
+                      title: Text(
+                        country.name,
+                        style: AppTextStyles.bodyMedium.copyWith(
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          color: isSelected ? AppColors.accent : AppColors.textPrimary,
+                        ),
+                      ),
+                      trailing: isSelected
+                          ? const Icon(Icons.check_circle_rounded, color: AppColors.accent)
+                          : Text(country.code, style: AppTextStyles.caption),
+                      onTap: () async {
+                        Navigator.of(ctx).pop();
+                        await auth.updateCountry(country.code);
+                        if (context.mounted) {
+                          CinemaSnackBar.show(
+                            context,
+                            'País actualizado a ${country.name} ${country.flag}. Catálogo adaptado.',
+                          );
+                        }
+                      },
+                    ),
+                  );
+                }),
+                const SizedBox(height: 8),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   void _showEditNameDialog(BuildContext context) {
     final auth = context.read<AuthService>();
     final controller = TextEditingController(text: auth.currentUser?.username ?? '');
@@ -1140,6 +1231,15 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 subtitle: 'Galería del dispositivo o avatar cinematográfico',
                 trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
                 onTap: () => _showAvatarPicker(context),
+              ),
+              const SizedBox(height: 10),
+
+              _buildSettingsTile(
+                icon: Icons.public_rounded,
+                title: 'País del Catálogo',
+                subtitle: '${AppConstants.getCountry(user?.country).flag} ${AppConstants.getCountry(user?.country).name} (${AppConstants.getCountry(user?.country).code})',
+                trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 14, color: AppColors.textSecondary),
+                onTap: () => _showChangeCountrySheet(context),
               ),
               const SizedBox(height: 26),
 

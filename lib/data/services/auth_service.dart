@@ -67,6 +67,7 @@ class AuthService extends ChangeNotifier {
     required String password,
     String? remoteUsername,
     String? remoteAvatarUrl,
+    String? remoteCountry,
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -85,12 +86,16 @@ class AuthService extends ChangeNotifier {
     final safeAvatarUrl = (remoteAvatarUrl != null && remoteAvatarUrl.trim().isNotEmpty)
         ? remoteAvatarUrl.trim()
         : 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150';
+    final safeCountry = (remoteCountry != null && remoteCountry.trim().isNotEmpty)
+        ? remoteCountry.trim().toUpperCase()
+        : 'CL';
 
     _currentUser = UserModel(
       id: 'usr_${email.hashCode.abs()}',
       email: safeEmail,
       username: safeUsername,
       avatarUrl: safeAvatarUrl,
+      country: safeCountry,
       createdAt: DateTime.now(),
     );
 
@@ -104,6 +109,7 @@ class AuthService extends ChangeNotifier {
     required String username,
     required String email,
     required String password,
+    String country = 'CL',
   }) async {
     _isLoading = true;
     notifyListeners();
@@ -121,6 +127,7 @@ class AuthService extends ChangeNotifier {
       email: safeEmail,
       username: safeUsername,
       avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150',
+      country: country.trim().toUpperCase(),
       createdAt: DateTime.now(),
     );
 
@@ -174,6 +181,22 @@ class AuthService extends ChangeNotifier {
     if (_currentUser == null) return;
     _currentUser = _currentUser!.copyWith(email: newEmail.trim());
     await _saveUser();
+    notifyListeners();
+  }
+
+  Future<void> updateCountry(String newCountry) async {
+    if (_currentUser == null) return;
+    final cleanCountry = newCountry.trim().toUpperCase();
+    _currentUser = _currentUser!.copyWith(country: cleanCountry);
+    await _saveUser();
+    if (_mongoService != null) {
+      try {
+        await _mongoService!.updateUserCountry(
+          email: _currentUser!.email,
+          country: cleanCountry,
+        );
+      } catch (_) {}
+    }
     notifyListeners();
   }
 
