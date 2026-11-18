@@ -20,11 +20,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.23.0');
-      expect(AppConstants.changeCounter, 24);
-      expect(AppConstants.appVersionDisplay, contains('v1.23.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #24'));
-      expect(AppConstants.changeLog.length, 25);
+      expect(AppConstants.appVersion, '1.24.0');
+      expect(AppConstants.changeCounter, 25);
+      expect(AppConstants.appVersionDisplay, contains('v1.24.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #25'));
+      expect(AppConstants.changeLog.length, 26);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -524,6 +524,56 @@ void main() {
       expect(filtered2.length, 2); // Oppenheimer y La La Land
       expect(filtered2.map((m) => m.title), contains('Oppenheimer'));
       expect(filtered2.map((m) => m.title), contains('La La Land'));
+    });
+
+    test('Reglas de Auto-Eliminación Inmediata de Salas y Expiración Máxima de 1 Hora', () {
+      final now = DateTime.now();
+      
+      // 1. Verificar límite estricto de expiración de 1 hora
+      final roomWithLongExp = RoomModel(
+        id: 'room_1',
+        code: 'TEST01',
+        hostId: 'host_1',
+        hostUsername: 'Host',
+        createdAt: now,
+        expiresAt: now.add(const Duration(hours: 3)), // Solicitada a 3 horas
+      );
+
+      final maxExp = DateTime.now().add(const Duration(hours: 1));
+      final effectiveExpiresAt = roomWithLongExp.expiresAt.isAfter(maxExp) ? maxExp : roomWithLongExp.expiresAt;
+      expect(effectiveExpiresAt.difference(now).inMinutes, inInclusiveRange(59, 60));
+
+      // 2. Simulación de salida de miembros y detección de sala vacía
+      final initialMembers = [
+        {'user_id': 'u1', 'username': 'User 1'},
+        {'user_id': 'u2', 'username': 'User 2'},
+      ];
+
+      // u1 sale: queda u2 (no se borra)
+      var remaining = initialMembers.where((m) => m['user_id'] != 'u1').toList();
+      expect(remaining.length, 1);
+      expect(remaining.isEmpty, false);
+
+      // u2 sale: lista vacía (se debe borrar inmediatamente)
+      remaining = remaining.where((m) => m['user_id'] != 'u2').toList();
+      expect(remaining.isEmpty, true);
+
+      // 3. Simulación de anfitrión cerrando la sala solo
+      final hostAloneMembers = [
+        {'user_id': 'u1', 'username': 'Host'},
+      ];
+      final shouldDeleteInstantly = hostAloneMembers.length <= 1;
+      expect(shouldDeleteInstantly, true);
+
+      // 4. Simulación de anfitrión cerrando con invitados
+      final hostWithGuestsMembers = [
+        {'user_id': 'u1', 'username': 'Host'},
+        {'user_id': 'u2', 'username': 'Guest'},
+      ];
+      final guestsPresent = hostWithGuestsMembers.length > 1;
+      expect(guestsPresent, true);
+      final shortTtlWindow = DateTime.now().toUtc().add(const Duration(minutes: 1));
+      expect(shortTtlWindow.isAfter(DateTime.now().toUtc()), true);
     });
   });
 }

@@ -62,9 +62,23 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
     final movie = _movie;
     final isRandom = widget.isRandomizerResult;
 
-    return ConfettiOverlay(
-      isPlaying: !isRandom,
-      child: Scaffold(
+    void handleExit() {
+      final user = context.read<AuthService>().currentUser;
+      final roomService = context.read<RoomService>();
+      final isHost = roomService.currentRoom?.hostId == user?.id;
+      roomService.leaveRoom(userId: user?.id, isHost: isHost);
+      Navigator.of(context).popUntil((route) => route.isFirst);
+    }
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        handleExit();
+      },
+      child: ConfettiOverlay(
+        isPlaying: !isRandom,
+        child: Scaffold(
         backgroundColor: AppColors.background,
         body: Stack(
           fit: StackFit.expand,
@@ -224,10 +238,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
                             foregroundColor: AppColors.textSecondary,
                             minimumSize: const Size(double.infinity, 44),
                           ),
-                          onPressed: () {
-                            context.read<RoomService>().leaveRoom();
-                            Navigator.of(context).popUntil((route) => route.isFirst);
-                          },
+                          onPressed: handleExit,
                         ),
                         const SizedBox(height: 8),
                         Text(
@@ -242,6 +253,7 @@ class _RoomMatchScreenState extends State<RoomMatchScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

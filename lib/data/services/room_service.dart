@@ -17,6 +17,8 @@ class RoomService extends ChangeNotifier {
   MongoDbService? _mongoService;
   String? _lastError;
   bool _wasRoomClosedByHost = false;
+  String? _currentUserId;
+  bool _isCurrentUserHost = false;
 
   RoomModel? get currentRoom => _currentRoom;
   bool get isInRoom => _currentRoom != null;
@@ -61,6 +63,8 @@ class RoomService extends ChangeNotifier {
         _expirationTimer?.cancel();
         _expirationTimer = null;
         _currentRoom = null;
+        _currentUserId = null;
+        _isCurrentUserHost = false;
         _wasRoomClosedByHost = true;
         notifyListeners();
         return;
@@ -170,6 +174,9 @@ class RoomService extends ChangeNotifier {
       expiresAt: now.add(const Duration(minutes: 30)),
     );
 
+    _currentUserId = host.id;
+    _isCurrentUserHost = true;
+
     // Guardar en MongoDB Atlas
     if (_mongoService != null) {
       await _mongoService!.saveRoom(_currentRoom!);
@@ -217,6 +224,8 @@ class RoomService extends ChangeNotifier {
       final existingIndex = remoteRoom.members.indexWhere((m) => m.userId == user.id);
       if (existingIndex >= 0) {
         _currentRoom = remoteRoom;
+        _currentUserId = user.id;
+        _isCurrentUserHost = remoteRoom.hostId == user.id;
         _startSyncTimer();
         notifyListeners();
         return true;
@@ -247,6 +256,8 @@ class RoomService extends ChangeNotifier {
       }
 
       _currentRoom = updatedRoom;
+      _currentUserId = user.id;
+      _isCurrentUserHost = false;
       _startSyncTimer();
       notifyListeners();
       return true;
@@ -255,7 +266,11 @@ class RoomService extends ChangeNotifier {
     // 2. Modo local o pruebas unitarias (sin MongoDB activo)
     if (_currentRoom != null && _currentRoom!.code == cleanCode) {
       final alreadyMember = _currentRoom!.members.any((m) => m.userId == user.id);
-      if (alreadyMember) return true;
+      if (alreadyMember) {
+        _currentUserId = user.id;
+        _isCurrentUserHost = _currentRoom!.hostId == user.id;
+        return true;
+      }
       if (_currentRoom!.isFull) {
         _lastError = 'La sala está llena.';
         return false;
@@ -605,24 +620,28 @@ class RoomService extends ChangeNotifier {
   /// Salir o destruir la sala grupal sincronizando en MongoDB Atlas
   Future<void> leaveRoom({String? userId, bool isHost = false}) async {
     final room = _currentRoom;
+    final effectiveUserId = userId ?? _currentUserId;
+    final effectiveIsHost = isHost || _isCurrentUserHost || (effectiveUserId != null && room?.hostId == effectiveUserId);
+
     _syncTimer?.cancel();
     _syncTimer = null;
     _expirationTimer?.cancel();
     _expirationTimer = null;
     _currentRoom = null;
+    _currentUserId = null;
+    _isCurrentUserHost = false;
     _lastError = null;
 
     if (room != null && _mongoService != null) {
       try {
-        final hostLeaving = isHost || (userId != null && room.hostId == userId);
-        if (hostLeaving) {
-          debugPrint('[RoomService] El anfitrión cerró la sala ${room.code}');
+        if (effectiveIsHost) {
+          debugPrint('[RoomService] El anfitrión cerró/abandonó la sala ${room.code}');
           await _mongoService!.closeRoom(room.code);
-        } else if (userId != null) {
-          debugPrint('[RoomService] Participante $userId abandonó la sala ${room.code}');
+        } else if (effectiveUserId != null) {
+          debugPrint('[RoomService] Participante $effectiveUserId abandonó la sala ${room.code}');
           await _mongoService!.removeMemberFromRoom(
             roomCode: room.code,
-            userId: userId,
+            userId: effectiveUserId,
           );
         }
       } catch (e) {

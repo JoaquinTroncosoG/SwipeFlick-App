@@ -7,6 +7,7 @@ import '../../../../core/widgets/cinema_image.dart';
 import '../../../../core/widgets/confetti_overlay.dart';
 import '../../../../data/models/genre_model.dart';
 import '../../../../data/models/room_model.dart';
+import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/room_service.dart';
 import 'room_phase2_movies_screen.dart';
 
@@ -133,7 +134,9 @@ class RoomCategoryMatchScreen extends StatelessWidget {
                         minimumSize: const Size(double.infinity, 40),
                       ),
                       onPressed: () {
-                        roomService.leaveRoom();
+                        final user = context.read<AuthService>().currentUser;
+                        final isHost = roomService.currentRoom?.hostId == user?.id;
+                        roomService.leaveRoom(userId: user?.id, isHost: isHost);
                         Navigator.of(context).popUntil((route) => route.isFirst);
                       },
                     ),

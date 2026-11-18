@@ -153,6 +153,10 @@ class MongoDbService extends ChangeNotifier {
       _dbName = targetDb;
       debugPrint('[MongoDB] ¡Conexión exitosa a la base de datos "$_dbName"!');
       notifyListeners();
+
+      // Mantenimiento en background: índices TTL y purga de salas expiradas/vacías
+      unawaited(_runBackgroundMaintenance());
+
       return true;
     } catch (e) {
       debugPrint('[MongoDB] Error al conectar: $e');
@@ -194,6 +198,106 @@ class MongoDbService extends ChangeNotifier {
         await testDb?.close();
       } catch (_) {}
       return false;
+    }
+  }
+
+  /// Ejecuta tareas de mantenimiento en segundo plano: creación de índices TTL y purga de salas viejas
+  Future<void> _runBackgroundMaintenance() async {
+    if (_db == null || !_db!.isConnected) return;
+    try {
+      // 1. Asegurar índice TTL en colección rooms (expiración automática en Atlas)
+      try {
+        await _db!.runCommand({
+          'createIndexes': 'rooms',
+          'indexes': [
+            {
+              'key': {'expires_at_date': 1},
+              'name': 'ttl_rooms_expires_at_date',
+              'expireAfterSeconds': 0,
+            },
+            {
+              'key': {'code': 1},
+              'name': 'idx_rooms_code',
+            }
+          ],
+        });
+      } catch (e) {
+        debugPrint('[MongoDB] Error al asegurar índices en rooms: $e');
+      }
+
+      // 2. Asegurar índice TTL en colección users (cuentas no verificadas de 30 min)
+      try {
+        await _db!.runCommand({
+          'createIndexes': 'users',
+          'indexes': [
+            {
+              'key': {'verificationExpiresAtDate': 1},
+              'name': 'ttl_unverified_30min',
+              'expireAfterSeconds': 0,
+            }
+          ],
+        });
+      } catch (e) {
+        try {
+          await _db!.collection('users').dropIndexes('ttl_unverified_30min');
+          await _db!.runCommand({
+            'createIndexes': 'users',
+            'indexes': [
+              {
+                'key': {'verificationExpiresAtDate': 1},
+                'name': 'ttl_unverified_30min',
+                'expireAfterSeconds': 0,
+              }
+            ],
+          });
+        } catch (_) {}
+      }
+
+      // 3. Purgar salas expiradas, vacías o cerradas
+      await purgeExpiredRooms();
+    } catch (e) {
+      debugPrint('[MongoDB] Error en _runBackgroundMaintenance: $e');
+    }
+  }
+
+  /// Purga salas expiradas, sin integrantes o cerradas en MongoDB Atlas
+  Future<int> purgeExpiredRooms() async {
+    if (!isConnected || _db == null) return 0;
+    try {
+      final collection = _db!.collection('rooms');
+      final nowUtc = DateTime.now().toUtc();
+      final nowIso = DateTime.now().toIso8601String();
+
+      int totalRemoved = 0;
+
+      // a) Borrar salas expiradas por fecha BSON Date
+      final res1 = await collection.deleteMany(where.lte('expires_at_date', nowUtc));
+      totalRemoved += res1.nRemoved;
+
+      // b) Borrar salas expiradas por fecha String ISO (salas legacy previas)
+      final res2 = await collection.deleteMany(where.lte('expires_at', nowIso));
+      totalRemoved += res2.nRemoved;
+
+      // c) Borrar salas vacías (sin integrantes)
+      final res3 = await collection.deleteMany(where.eq('members', []));
+      totalRemoved += res3.nRemoved;
+
+      // d) Borrar salas cerradas con más de 2 minutos
+      final twoMinutesAgo = DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String();
+      final res4 = await collection.deleteMany(
+        where.eq('status', RoomStatus.closed.name).and(
+          where.lte('closed_at', twoMinutesAgo).or(where.notExists('closed_at')),
+        ),
+      );
+      totalRemoved += res4.nRemoved;
+
+      if (totalRemoved > 0) {
+        debugPrint('[MongoDB] Purga automática: $totalRemoved salas eliminadas de Atlas.');
+      }
+      return totalRemoved;
+    } catch (e) {
+      debugPrint('[MongoDB] Error durante purgeExpiredRooms: $e');
+      return 0;
     }
   }
 
@@ -476,6 +580,11 @@ class MongoDbService extends ChangeNotifier {
     try {
       final collection = _db!.collection('rooms');
       final data = room.toJson();
+
+      // Garantizar que la expiración no supere 1 hora (máximo 60 minutos)
+      final maxExp = DateTime.now().add(const Duration(hours: 1));
+      final effectiveExpiresAt = room.expiresAt.isAfter(maxExp) ? maxExp : room.expiresAt;
+
       final modifier = modify
           .set('id', room.id)
           .set('code', room.code)
@@ -493,7 +602,9 @@ class MongoDbService extends ChangeNotifier {
           .set('matched_movie', data['matched_movie'])
           .set('is_randomizer_result', room.isRandomizerResult)
           .set('created_at', room.createdAt.toIso8601String())
-          .set('expires_at', room.expiresAt.toIso8601String())
+          .set('created_at_date', room.createdAt.toUtc())
+          .set('expires_at', effectiveExpiresAt.toIso8601String())
+          .set('expires_at_date', effectiveExpiresAt.toUtc())
           .set('updated_at', DateTime.now().toIso8601String());
 
       if (data['movie_deck'] != null && (data['movie_deck'] as List).isNotEmpty) {
@@ -618,10 +729,13 @@ class MongoDbService extends ChangeNotifier {
         );
       }
       if (matchedMovie != null) {
+        final resultExp = DateTime.now().toUtc().add(const Duration(minutes: 15));
         modifier = modifier
             .set('matched_movie', matchedMovie.toJson())
             .set('is_randomizer_result', isRandomizer)
-            .set('status', RoomStatus.completed.name);
+            .set('status', RoomStatus.completed.name)
+            .set('expires_at', resultExp.toIso8601String())
+            .set('expires_at_date', resultExp);
       }
 
       await collection.updateOne(where.eq('code', cleanCode), modifier);
@@ -656,12 +770,15 @@ class MongoDbService extends ChangeNotifier {
       }
 
       // 2. Intentar asignar atómicamente SOLO si matched_movie aún es null o no existe
+      final resultExp = DateTime.now().toUtc().add(const Duration(minutes: 15));
       final modifier = modify
           .set('matched_movie', candidateMovie.toJson())
           .set('is_randomizer_result', isRandomizer)
           .set('status', RoomStatus.completed.name)
           .set('phase', RoomPhase.result.name)
           .set('matched_at', DateTime.now().toIso8601String())
+          .set('expires_at', resultExp.toIso8601String())
+          .set('expires_at_date', resultExp)
           .set('updated_at', DateTime.now().toIso8601String());
 
       await collection.updateOne(
@@ -697,12 +814,28 @@ class MongoDbService extends ChangeNotifier {
       final doc = await collection.findOne(where.eq('code', cleanCode));
       if (doc == null) return null;
 
-      // Verificar si expiró
+      // 1. Si no hay integrantes registrados en la sala, borrar directamente de Atlas
+      final membersList = doc['members'] as List?;
+      if (membersList == null || membersList.isEmpty) {
+        debugPrint('[MongoDB] La sala $cleanCode no tiene integrantes. Eliminando de Atlas.');
+        await collection.deleteOne(where.eq('code', cleanCode));
+        return null;
+      }
+
+      // 2. Verificar si expiró por BSON Date
+      final expiresDate = doc['expires_at_date'];
+      if (expiresDate is DateTime && DateTime.now().toUtc().isAfter(expiresDate)) {
+        debugPrint('[MongoDB] La sala $cleanCode expiró (expires_at_date). Eliminando de Atlas.');
+        await collection.deleteOne(where.eq('code', cleanCode));
+        return null;
+      }
+
+      // 3. Verificar si expiró por String ISO
       final expiresStr = doc['expires_at'] as String?;
       if (expiresStr != null) {
         final exp = DateTime.tryParse(expiresStr);
         if (exp != null && DateTime.now().isAfter(exp)) {
-          debugPrint('[MongoDB] La sala $cleanCode expiró.');
+          debugPrint('[MongoDB] La sala $cleanCode expiró (expires_at). Eliminando de Atlas.');
           await collection.deleteOne(where.eq('code', cleanCode));
           return null;
         }
@@ -729,7 +862,8 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
-  /// Elimina a un participante de una sala grupal en MongoDB Atlas
+  /// Elimina a un participante de una sala grupal en MongoDB Atlas.
+  /// Si era el último integrante, la sala se borra inmediatamente de Atlas.
   Future<bool> removeMemberFromRoom({
     required String roomCode,
     required String userId,
@@ -749,13 +883,20 @@ class MongoDbService extends ChangeNotifier {
           .where((m) => m is Map && (m['user_id'] != userId && m['userId'] != userId))
           .toList();
 
+      // REQUERIMIENTO PRINCIPAL: Si todos los integrantes salieron, borrar la sala inmediatamente
+      if (membersList.isEmpty) {
+        await collection.deleteOne(where.eq('code', cleanCode));
+        debugPrint('[MongoDB] Todos los integrantes salieron de la sala $cleanCode. Eliminada permanentemente de Atlas.');
+        return true;
+      }
+
       await collection.updateOne(
         where.eq('code', cleanCode),
         modify
             .set('members', membersList)
             .set('updated_at', DateTime.now().toIso8601String()),
       );
-      debugPrint('[MongoDB] Participante $userId retirado de la sala $cleanCode');
+      debugPrint('[MongoDB] Participante $userId retirado de la sala $cleanCode (${membersList.length} restantes)');
       return true;
     } catch (e) {
       debugPrint('[MongoDB] Error al retirar participante de la sala: $e');
@@ -763,7 +904,8 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
-  /// Cierra una sala oficialmente en MongoDB Atlas notificando a los demás miembros
+  /// Cierra una sala oficialmente en MongoDB Atlas notificando a los demás miembros.
+  /// Si no hay otros invitados, la borra de inmediato. Si hay invitados, fija auto-expiración corta (1 min).
   Future<bool> closeRoom(String roomCode) async {
     if (!isConnected || _db == null) {
       final ok = await ensureConnected();
@@ -772,14 +914,31 @@ class MongoDbService extends ChangeNotifier {
     try {
       final collection = _db!.collection('rooms');
       final cleanCode = roomCode.trim().toUpperCase();
+
+      final doc = await collection.findOne(where.eq('code', cleanCode));
+      if (doc == null) return true;
+
+      final membersList = (doc['members'] as List? ?? []);
+      // Si el anfitrión estaba solo o la sala quedó vacía, borrarla inmediatamente
+      if (membersList.length <= 1) {
+        await collection.deleteOne(where.eq('code', cleanCode));
+        debugPrint('[MongoDB] Sala $cleanCode cerrada por el host sin invitados activos. Eliminada de Atlas.');
+        return true;
+      }
+
+      // Si hay invitados, marcar como cerrada y fijar auto-expiración corta de 1 minuto
+      // para que el polling de los invitados reciba la notificación y luego Atlas la elimine por TTL
+      final shortExp = DateTime.now().toUtc().add(const Duration(minutes: 1));
       await collection.updateOne(
         where.eq('code', cleanCode),
         modify
             .set('status', RoomStatus.closed.name)
             .set('closed_at', DateTime.now().toIso8601String())
+            .set('expires_at', shortExp.toIso8601String())
+            .set('expires_at_date', shortExp)
             .set('updated_at', DateTime.now().toIso8601String()),
       );
-      debugPrint('[MongoDB] Sala $cleanCode marcada como CERRADA en Atlas.');
+      debugPrint('[MongoDB] Sala $cleanCode marcada como CERRADA en Atlas (auto-expiración TTL en 1 min).');
       return true;
     } catch (e) {
       debugPrint('[MongoDB] Error al cerrar sala en Atlas: $e');

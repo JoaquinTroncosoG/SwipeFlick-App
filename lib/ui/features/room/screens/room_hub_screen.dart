@@ -4,6 +4,7 @@ import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_text_styles.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../data/models/room_model.dart';
+import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/room_service.dart';
 import 'create_room_dialog.dart';
 import 'join_room_dialog.dart';
@@ -127,7 +128,9 @@ class RoomHubScreen extends StatelessWidget {
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                             ),
                             onPressed: () {
-                              roomService.leaveRoom();
+                              final user = context.read<AuthService>().currentUser;
+                              final isHost = activeRoom.hostId == user?.id;
+                              roomService.leaveRoom(userId: user?.id, isHost: isHost);
                             },
                             child: const Text('Salir'),
                           ),

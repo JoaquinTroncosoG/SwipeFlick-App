@@ -36,9 +36,9 @@ class MajorStreamingProvider {
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.23.0';
-  static const int changeCounter = 24;
-  static const String appVersionDisplay = 'v1.23.0 • Cambio #24';
+  static const String appVersion = '1.24.0';
+  static const int changeCounter = 25;
+  static const String appVersionDisplay = 'v1.24.0 • Cambio #25';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -166,6 +166,11 @@ class AppConstants {
       'version': '1.23.0 (Cambio #24)',
       'title': 'País de Registro, Filtro Interactivo de Plataformas & Blindaje de Matches',
       'description': 'Selección de país en registro y editable en Perfil (Chile 🇨🇱, México 🇲🇽, España 🇪🇸, Argentina 🇦🇷, Colombia 🇨🇴, Perú 🇵🇪, EE.UU. 🇺🇸) para adaptar el catálogo a la región del usuario; nuevo selector interactivo de plataformas de streaming con tarjetas iluminadas en dorado para filtrar por servicios contratados (Netflix, Disney+, Max, Prime Video, Apple TV+, etc.) en modo individual y salas grupales; incorporación de filtro de exclusión de matches en swipe solitario; y blindaje estricto del filtro "¿Considerar películas matches?" con doble validación por ID numérico y título normalizado.',
+    },
+    {
+      'version': '1.24.0 (Cambio #25)',
+      'title': 'Auto-Eliminación Inmediata de Salas & Purga TTL en MongoDB Atlas',
+      'description': 'Eliminación instantánea y permanente de salas en MongoDB Atlas cuando todos los participantes salen; índice TTL nativo (expires_at_date) con auto-purga en el cluster en un plazo máximo de 1 hora; auto-limpieza en segundo plano de salas abandonadas, vacías o cerradas al conectar; y manejo sincronizado de salida del anfitrión e invitados en todas las pantallas.',
     },
   ];
 
