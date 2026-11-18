@@ -36,9 +36,9 @@ class MajorStreamingProvider {
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.24.0';
-  static const int changeCounter = 25;
-  static const String appVersionDisplay = 'v1.24.0 • Cambio #25';
+  static const String appVersion = '1.25.0';
+  static const int changeCounter = 26;
+  static const String appVersionDisplay = 'v1.25.0 • Cambio #26';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -171,6 +171,11 @@ class AppConstants {
       'version': '1.24.0 (Cambio #25)',
       'title': 'Auto-Eliminación Inmediata de Salas & Purga TTL en MongoDB Atlas',
       'description': 'Eliminación instantánea y permanente de salas en MongoDB Atlas cuando todos los participantes salen; índice TTL nativo (expires_at_date) con auto-purga en el cluster en un plazo máximo de 1 hora; auto-limpieza en segundo plano de salas abandonadas, vacías o cerradas al conectar; y manejo sincronizado de salida del anfitrión e invitados en todas las pantallas.',
+    },
+    {
+      'version': '1.25.0 (Cambio #26)',
+      'title': 'Blindaje de Seguridad y Eliminación de Credenciales Expuestas',
+      'description': 'Eliminación completa del panel de configuración técnica avanzada y diálogo de conexión MongoDB en el perfil del usuario; enmascaramiento estricto de credenciales; remoción y purga de releases anteriores de APK en GitHub; refuerzo de directivas de AndroidManifest (allowBackup=false, usesCleartextTraffic=false); y auditoría de ciberseguridad.',
     },
   ];
 

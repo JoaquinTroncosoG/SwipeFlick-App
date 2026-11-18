@@ -20,11 +20,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.24.0');
-      expect(AppConstants.changeCounter, 25);
-      expect(AppConstants.appVersionDisplay, contains('v1.24.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #25'));
-      expect(AppConstants.changeLog.length, 26);
+      expect(AppConstants.appVersion, '1.25.0');
+      expect(AppConstants.changeCounter, 26);
+      expect(AppConstants.appVersionDisplay, contains('v1.25.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #26'));
+      expect(AppConstants.changeLog.length, 27);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -164,11 +164,12 @@ void main() {
       expect(mongo.isConfigured, false);
       expect(mongo.dbName, 'swipeflick');
 
-      // Validar asignación de credenciales
-      await mongo.saveCredentials(uri: 'mongodb://mock-cluster:27017/swipeflick', dbName: 'testdb');
+      // Validar asignación de credenciales con enmascaramiento estricto
+      await mongo.saveCredentials(uri: 'mongodb://user:secretPassword123@mock-cluster:27017/swipeflick', dbName: 'testdb');
       expect(mongo.isConfigured, true);
       expect(mongo.dbName, 'testdb');
-      expect(mongo.uri, 'mongodb://mock-cluster:27017/swipeflick');
+      expect(mongo.uri, contains('********'));
+      expect(mongo.uri, isNot(contains('secretPassword123')));
     });
 
     test('BrevoEmailService envía código de verificación OTP', () async {

@@ -46,7 +46,15 @@ class MongoDbService extends ChangeNotifier {
   MongoDbStatus _status = MongoDbStatus.unconfigured;
   String? _lastError;
 
-  String? get uri => _uri;
+  /// Devuelve la URI con las credenciales enmascaradas para proteger la seguridad en logs e interfaz
+  String? get uri {
+    if (_uri == null || _uri!.isEmpty) return null;
+    return _uri!.replaceAllMapped(
+      RegExp(r':([^@]+)@'),
+      (match) => ':********@',
+    );
+  }
+
   String get dbName => _dbName;
   MongoDbStatus get status => _status;
   bool get isConnected => _status == MongoDbStatus.connected && _db != null && _db!.isConnected;
@@ -62,21 +70,24 @@ class MongoDbService extends ChangeNotifier {
     return await connect(uri: target, dbName: _dbName);
   }
 
-  /// Inicializa el servicio leyendo credenciales persistidas o usando la URI de Atlas por entorno
+  /// Inicializa el servicio usando la configuración interna segura o variables de entorno
   Future<void> init() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final savedUri = prefs.getString(_prefUriKey);
-      if (savedUri != null && savedUri.trim().isNotEmpty) {
-        _uri = savedUri.trim();
-      } else if (savedUri == null && defaultUri.isNotEmpty) {
-        _uri = defaultUri;
-      } else {
+      if (savedUri != null && savedUri.trim().isEmpty) {
+        // En entorno de tests o modo desacoplado explícito, respetar estado no configurado
         _uri = null;
+      } else {
+        _uri = defaultUri;
       }
 
-      _dbName = prefs.getString(_prefDbNameKey) ??
-          const String.fromEnvironment('MONGODB_DBNAME', defaultValue: 'swipeflick');
+      // Purgar de SharedPreferences cualquier URI en texto plano guardada en versiones previas
+      if (savedUri != null && savedUri.isNotEmpty) {
+        await prefs.remove(_prefUriKey);
+      }
+
+      _dbName = const String.fromEnvironment('MONGODB_DBNAME', defaultValue: 'swipeflick');
 
       if (_uri != null && _uri!.trim().isNotEmpty) {
         // Conexión no bloqueante en background al iniciar
@@ -94,17 +105,13 @@ class MongoDbService extends ChangeNotifier {
 
   /// Restablece a la cadena de conexión de producción de Atlas
   Future<bool> restoreDefaultUri() async {
-    return await saveCredentials(uri: defaultUri, dbName: 'swipeflick');
+    return await connect(uri: defaultUri, dbName: 'swipeflick');
   }
 
-  /// Guarda credenciales y conecta
+  /// Guarda credenciales y conecta (uso exclusivo interno)
   Future<bool> saveCredentials({required String uri, required String dbName}) async {
     _uri = uri.trim();
     _dbName = dbName.trim().isEmpty ? 'swipeflick' : dbName.trim();
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_prefUriKey, _uri!);
-    await prefs.setString(_prefDbNameKey, _dbName);
 
     if (_uri!.isEmpty) {
       await disconnect();
@@ -119,7 +126,11 @@ class MongoDbService extends ChangeNotifier {
 
   /// Intenta conectar a MongoDB
   Future<bool> connect({String? uri, String? dbName}) async {
-    final targetUri = uri ?? _uri;
+    var targetUri = uri ?? _uri;
+    // Si se pasa una URI enmascarada (con asteriscos), resolver con la URI interna real
+    if (targetUri != null && targetUri.contains('********') && _uri != null) {
+      targetUri = _uri;
+    }
     final targetDb = dbName ?? _dbName;
 
     if (targetUri == null || targetUri.trim().isEmpty) {
