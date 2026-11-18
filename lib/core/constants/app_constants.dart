@@ -36,9 +36,9 @@ class MajorStreamingProvider {
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.25.0';
-  static const int changeCounter = 26;
-  static const String appVersionDisplay = 'v1.25.0 • Cambio #26';
+  static const String appVersion = '1.26.0';
+  static const int changeCounter = 27;
+  static const String appVersionDisplay = 'v1.26.0 • Cambio #27';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -176,6 +176,11 @@ class AppConstants {
       'version': '1.25.0 (Cambio #26)',
       'title': 'Blindaje de Seguridad y Eliminación de Credenciales Expuestas',
       'description': 'Eliminación completa del panel de configuración técnica avanzada y diálogo de conexión MongoDB en el perfil del usuario; enmascaramiento estricto de credenciales; remoción y purga de releases anteriores de APK en GitHub; refuerzo de directivas de AndroidManifest (allowBackup=false, usesCleartextTraffic=false); y auditoría de ciberseguridad.',
+    },
+    {
+      'version': '1.26.0 (Cambio #27)',
+      'title': 'Hardening Integral: Secure Storage por Hardware, Ofuscación R8, PBKDF2 y Blindaje OTP',
+      'description': 'Migración de sesión y credenciales a almacenamiento seguro por hardware (flutter_secure_storage con Android KeyStore / iOS Keychain); habilitación de optimización, encogimiento y ofuscación R8/ProGuard en builds release; actualización criptográfica de contraseñas a PBKDF2-HMAC-SHA256 (NIST SP 800-63B, 10.000 iteraciones); almacenamiento hasheado de códigos OTP y límite estricto de 5 intentos fallidos en MongoDB Atlas contra fuerza bruta; y remoción de requestLegacyExternalStorage en Android.',
     },
   ];
 

@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:provider/provider.dart';
-import 'package:swipeflick/core/constants/app_constants.dart';
 import 'package:swipeflick/data/services/auth_service.dart';
 import 'package:swipeflick/data/services/brevo_email_service.dart';
 import 'package:swipeflick/data/services/favorites_service.dart';

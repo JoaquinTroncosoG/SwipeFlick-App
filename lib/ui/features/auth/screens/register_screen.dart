@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../../../core/constants/app_colors.dart';
 import '../../../../core/constants/app_constants.dart';
 import '../../../../core/constants/app_text_styles.dart';
+import '../../../../core/utils/security_helper.dart';
 import '../../../../core/widgets/cinema_button.dart';
 import '../../../../core/widgets/cinema_snackbar.dart';
 import '../../../../data/services/auth_service.dart';
@@ -104,6 +105,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String initialOtp,
   }) {
     String currentOtp = initialOtp;
+    int dialogAttempts = 0;
     final otpController = TextEditingController();
 
     showDialog(
@@ -253,12 +255,33 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 style: ElevatedButton.styleFrom(backgroundColor: AppColors.accent),
                 onPressed: () async {
                   final entered = otpController.text.trim();
-                  if (entered != currentOtp) {
+                  dialogAttempts++;
+
+                  if (dialogAttempts > 5) {
+                    Navigator.of(ctx).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         backgroundColor: AppColors.error,
-                        content: Text('El código ingresado es incorrecto. Inténtalo de nuevo.'),
-                        duration: Duration(seconds: 2),
+                        content: Text('Límite de intentos superado (5). Por seguridad solicita un nuevo registro.'),
+                        duration: Duration(seconds: 4),
+                      ),
+                    );
+                    return;
+                  }
+
+                  final isOtpValid = SecurityHelper.verifyOtp(
+                    enteredOtp: entered,
+                    storedOtp: currentOtp,
+                    salt: email.trim().toLowerCase(),
+                  );
+
+                  if (!isOtpValid) {
+                    final remaining = 5 - dialogAttempts;
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        backgroundColor: AppColors.error,
+                        content: Text('El código ingresado es incorrecto. Te quedan $remaining intentos.'),
+                        duration: const Duration(seconds: 2),
                       ),
                     );
                     return;

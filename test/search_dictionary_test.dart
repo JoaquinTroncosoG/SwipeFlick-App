@@ -20,11 +20,11 @@ import 'package:swipeflick/data/services/rate_limit_service.dart';
 void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
-      expect(AppConstants.appVersion, '1.25.0');
-      expect(AppConstants.changeCounter, 26);
-      expect(AppConstants.appVersionDisplay, contains('v1.25.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #26'));
-      expect(AppConstants.changeLog.length, 27);
+      expect(AppConstants.appVersion, '1.26.0');
+      expect(AppConstants.changeCounter, 27);
+      expect(AppConstants.appVersionDisplay, contains('v1.26.0'));
+      expect(AppConstants.appVersionDisplay, contains('Cambio #27'));
+      expect(AppConstants.changeLog.length, 28);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -184,9 +184,10 @@ void main() {
       expect(sent, isTrue);
     });
 
-    test('SecurityHelper hashea y verifica contraseñas con sal', () {
+    test('SecurityHelper hashea y verifica contraseñas con sal y PBKDF2', () {
       final hash1 = SecurityHelper.hashPassword('mi_clave_secreta', userSalt: 'user@test.com');
-      expect(hash1.length, 64); // SHA-256 hex string
+      expect(SecurityHelper.isPbkdf2Hash(hash1), isTrue);
+      expect(hash1.length, 80); // $pbkdf2$i=10000$<64-hex>
 
       // Verificación positiva
       expect(
@@ -205,6 +206,21 @@ void main() {
           storedHash: hash1,
           userSalt: 'user@test.com',
         ),
+        isFalse,
+      );
+
+      // Compatibilidad con hashes legacy SHA-256
+      const legacySha256Hash = 'a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2';
+      expect(SecurityHelper.isPbkdf2Hash(legacySha256Hash), isFalse);
+
+      // OTP Hash y Verificación segura
+      final otpHash = SecurityHelper.hashOtp('654321', salt: 'user@test.com');
+      expect(
+        SecurityHelper.verifyOtp(enteredOtp: '654321', storedOtp: otpHash, salt: 'user@test.com'),
+        isTrue,
+      );
+      expect(
+        SecurityHelper.verifyOtp(enteredOtp: '000000', storedOtp: otpHash, salt: 'user@test.com'),
         isFalse,
       );
     });

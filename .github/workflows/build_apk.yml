@@ -77,14 +77,14 @@ jobs:
           mkdir -p build/app/outputs/flutter-apk
           APK_FILE=$(find . -name "*release*.apk" -o -name "app-release.apk" | head -n 1)
           echo "Found APK file to package: $APK_FILE"
-          cp "$APK_FILE" build/app/outputs/flutter-apk/SwipeFlick-v1.25.0.apk
-          ls -lh build/app/outputs/flutter-apk/SwipeFlick-v1.25.0.apk
+          cp "$APK_FILE" build/app/outputs/flutter-apk/SwipeFlick-v1.26.0.apk
+          ls -lh build/app/outputs/flutter-apk/SwipeFlick-v1.26.0.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SwipeFlick-Android-APK
-          path: build/app/outputs/flutter-apk/SwipeFlick-v1.25.0.apk
+          path: build/app/outputs/flutter-apk/SwipeFlick-v1.26.0.apk
           retention-days: 30
 
       - name: Publish GitHub Release with APK
@@ -96,6 +96,6 @@ jobs:
             echo "Deleting release: $rel"
             gh release delete "$rel" --yes || true
           done
-          git tag -d v1.25.0-apk 2>/dev/null || true
-          git push origin :refs/tags/v1.25.0-apk 2>/dev/null || true
-          gh release create v1.25.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.25.0.apk --title "SwipeFlick v1.25.0 (APK Android) - Hardened Security" --notes "Versión reforzada de SwipeFlick (v1.25.0 - Cambio #26). Se eliminaron paneles de configuración técnica interna y se purgaron versiones previas comprometidas."
+          git tag -d v1.26.0-apk 2>/dev/null || true
+          git push origin :refs/tags/v1.26.0-apk 2>/dev/null || true
+          gh release create v1.26.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.26.0.apk --title "SwipeFlick v1.26.0 (APK Android) - Hardened Security Suite" --notes "Versión reforzada de SwipeFlick (v1.26.0 - Cambio #27). Incluye almacenamiento seguro KeyStore por hardware, ofuscación y minificación R8/ProGuard en Android, PBKDF2-HMAC-SHA256 para contraseñas, almacenamiento hasheado de OTPs con límite anti-fuerza bruta en MongoDB Atlas."

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:mongo_dart/mongo_dart.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -338,7 +337,7 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
-  /// Guardar o registrar nuevo usuario con contraseña hasheada, sanitización y expiración de 30 minutos si no está verificado
+  /// Guardar o registrar nuevo usuario con contraseña hasheada (PBKDF2/SHA-256), sanitización y expiración de 30 minutos si no está verificado
   Future<bool> saveUser({
     required String id,
     required String username,
@@ -360,7 +359,7 @@ class MongoDbService extends ChangeNotifier {
     }
 
     final safeUsername = SecurityHelper.sanitizeUsername(username);
-    final finalHash = passwordHash.length == 64
+    final finalHash = (SecurityHelper.isPbkdf2Hash(passwordHash) || passwordHash.length == 64)
         ? passwordHash
         : SecurityHelper.hashPassword(passwordHash, userSalt: safeEmail);
 
@@ -382,8 +381,12 @@ class MongoDbService extends ChangeNotifier {
           .setOnInsert('createdAt', nowStr);
 
       if (!isVerified) {
-        // Límite de 30 minutos para cuentas no verificadas (REQUERIMIENTO 2)
-        modifier.set('otpCode', otpCode ?? '');
+        // Límite de 30 minutos para cuentas no verificadas y almacenamiento hasheado del OTP
+        if (otpCode != null && otpCode.isNotEmpty) {
+          final otpHash = SecurityHelper.hashOtp(otpCode, salt: safeEmail);
+          modifier.set('otpHash', otpHash);
+          modifier.set('otpAttempts', 0);
+        }
         modifier.set('verificationExpiresAt', expiresDate.toIso8601String());
         modifier.set('verificationExpiresAtDate', expiresDate);
       }
@@ -411,6 +414,7 @@ class MongoDbService extends ChangeNotifier {
 
   /// Verifica y activa la cuenta de un usuario dentro del plazo de 30 minutos
   /// Si pasaron más de 30 minutos, borra al usuario de la base de datos automáticamente.
+  /// Incluye límite estricto de 5 intentos fallidos en la base de datos contra ataques de fuerza bruta.
   Future<bool> verifyAndActivateUser({
     required String email,
     required String enteredOtp,
@@ -442,22 +446,54 @@ class MongoDbService extends ChangeNotifier {
         }
       }
 
-      // Validar código OTP
-      final storedOtp = user['otpCode'] as String?;
-      if (storedOtp != null && storedOtp == enteredOtp.trim()) {
+      // Validar contador de intentos fallidos en la base de datos (límite de 5 intentos)
+      final attempts = (user['otpAttempts'] as int?) ?? 0;
+      if (attempts >= 5) {
+        debugPrint('[MongoDB] Verificación bloqueada: exceso de intentos fallidos (5).');
+        await collection.updateOne(
+          where.eq('email', safeEmail),
+          modify.unset('otpHash').unset('otpCode'),
+        );
+        return false;
+      }
+
+      // Validar código OTP contra hash seguro (o retrocompatible con texto plano legacy)
+      final storedOtpHash = user['otpHash'] as String?;
+      final legacyOtpCode = user['otpCode'] as String?;
+      final targetOtp = storedOtpHash ?? legacyOtpCode;
+
+      bool isValid = false;
+      if (targetOtp != null) {
+        isValid = SecurityHelper.verifyOtp(
+          enteredOtp: enteredOtp,
+          storedOtp: targetOtp,
+          salt: safeEmail,
+        );
+      }
+
+      if (isValid) {
         await collection.updateOne(
           where.eq('email', safeEmail),
           modify
               .set('isVerified', true)
               .set('verifiedAt', DateTime.now().toIso8601String())
+              .unset('otpHash')
               .unset('otpCode')
+              .unset('otpAttempts')
               .unset('verificationExpiresAt')
               .unset('verificationExpiresAtDate'),
         );
         debugPrint('[MongoDB] ¡Cuenta $safeEmail verificada y activada de forma permanente!');
         return true;
+      } else {
+        // Registrar intento fallido en el servidor/base de datos
+        await collection.updateOne(
+          where.eq('email', safeEmail),
+          modify.inc('otpAttempts', 1),
+        );
+        debugPrint('[MongoDB] Intento OTP fallido para $safeEmail. Intento ${attempts + 1} de 5.');
+        return false;
       }
-      return false;
     } catch (e) {
       debugPrint('[MongoDB] Error al verificar y activar usuario: $e');
       return false;
@@ -484,7 +520,7 @@ class MongoDbService extends ChangeNotifier {
     }
   }
 
-  /// Actualizar contraseña de usuario (con hash SHA-256 + salt)
+  /// Actualizar contraseña de usuario (con hash PBKDF2/SHA-256 + salt)
   Future<bool> updateUserPassword({required String email, required String newPasswordHash}) async {
     if (!isConnected || _db == null) {
       final ok = await ensureConnected();
@@ -493,7 +529,7 @@ class MongoDbService extends ChangeNotifier {
     final safeEmail = SecurityHelper.sanitizeEmail(email);
     if (safeEmail == null) return false;
 
-    final finalHash = newPasswordHash.length == 64
+    final finalHash = (SecurityHelper.isPbkdf2Hash(newPasswordHash) || newPasswordHash.length == 64)
         ? newPasswordHash
         : SecurityHelper.hashPassword(newPasswordHash, userSalt: safeEmail);
 
@@ -511,17 +547,26 @@ class MongoDbService extends ChangeNotifier {
   }
 
   /// Valida credenciales contra el hash almacenado en MongoDB
+  /// Si el hash es legacy SHA-256, se actualiza automáticamente a PBKDF2
   Future<bool> verifyUserCredentials(String email, String plainPassword) async {
     final user = await findUserByEmail(email);
     if (user == null) return false;
     final storedHash = user['passwordHash'] as String?;
     if (storedHash == null) return false;
     final safeEmail = SecurityHelper.sanitizeEmail(email);
-    return SecurityHelper.verifyPassword(
+    final isMatch = SecurityHelper.verifyPassword(
       candidatePassword: plainPassword,
       storedHash: storedHash,
       userSalt: safeEmail,
     );
+
+    // Auto-actualización transparente a PBKDF2 si coincidió con SHA-256 legacy
+    if (isMatch && !SecurityHelper.isPbkdf2Hash(storedHash) && safeEmail != null) {
+      final upgradedPbkdf2 = SecurityHelper.hashPassword(plainPassword, userSalt: safeEmail);
+      unawaited(updateUserPassword(email: safeEmail, newPasswordHash: upgradedPbkdf2));
+    }
+
+    return isMatch;
   }
 
   /// Actualizar datos de perfil (nombre, avatar)

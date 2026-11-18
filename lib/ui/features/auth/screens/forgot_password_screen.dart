@@ -28,6 +28,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   final _confirmPasswordController = TextEditingController();
 
   String _generatedOtp = '';
+  int _recoveryAttempts = 0;
   bool _obscureNew = true;
   bool _obscureConfirm = true;
   bool _isLoading = false;
@@ -68,6 +69,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
     // Generar OTP de 6 dígitos
     _generatedOtp = (100000 + Random().nextInt(900000)).toString();
+    _recoveryAttempts = 0;
 
     final brevo = context.read<BrevoEmailService>();
     await brevo.sendPasswordResetCodeEmail(
@@ -92,14 +94,39 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     }
   }
 
-  // PASO 2: Verificar el código OTP
+  // PASO 2: Verificar el código OTP con límite de intentos y comparación segura
   void _verifyRecoveryCode() {
     final entered = _otpController.text.trim();
-    if (entered.isEmpty || entered != _generatedOtp) {
+    _recoveryAttempts++;
+
+    if (_recoveryAttempts > 5) {
+      _generatedOtp = '';
+      _recoveryAttempts = 0;
+      setState(() => _currentStep = 1);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           backgroundColor: AppColors.error,
-          content: Text('Código incorrecto. Revisa el correo enviado o el código de pruebas.'),
+          content: Text('Límite de intentos superado (5). Por seguridad solicita un nuevo código.'),
+          duration: Duration(seconds: 4),
+        ),
+      );
+      return;
+    }
+
+    final isMatch = _generatedOtp.isNotEmpty &&
+        entered.isNotEmpty &&
+        SecurityHelper.verifyOtp(
+          enteredOtp: entered,
+          storedOtp: _generatedOtp,
+          salt: _emailController.text.trim().toLowerCase(),
+        );
+
+    if (!isMatch) {
+      final remaining = 5 - _recoveryAttempts;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: AppColors.error,
+          content: Text('Código incorrecto. Te quedan $remaining intentos.'),
         ),
       );
       return;
