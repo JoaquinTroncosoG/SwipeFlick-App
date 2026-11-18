@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +12,6 @@ import '../../../../data/services/auth_service.dart';
 import '../../../../data/services/brevo_email_service.dart';
 import '../../../../data/services/favorites_service.dart';
 import '../../../../data/services/mongodb_service.dart';
-import '../../../../data/services/tmdb_service.dart';
 import '../../auth/screens/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {

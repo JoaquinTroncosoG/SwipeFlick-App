@@ -17,7 +17,6 @@ enum MongoDbStatus {
 
 class MongoDbService extends ChangeNotifier {
   static const String _prefUriKey = 'mongodb_uri';
-  static const String _prefDbNameKey = 'mongodb_dbname';
 
   /// Cadena de conexión predeterminada configurada para SwipeFlick (con fallback seguro)
   static String get defaultUri {
@@ -100,11 +99,6 @@ class MongoDbService extends ChangeNotifier {
       _status = MongoDbStatus.unconfigured;
       notifyListeners();
     }
-  }
-
-  /// Restablece a la cadena de conexión de producción de Atlas
-  Future<bool> restoreDefaultUri() async {
-    return await connect(uri: defaultUri, dbName: 'swipeflick');
   }
 
   /// Guarda credenciales y conecta (uso exclusivo interno)
@@ -497,26 +491,6 @@ class MongoDbService extends ChangeNotifier {
     } catch (e) {
       debugPrint('[MongoDB] Error al verificar y activar usuario: $e');
       return false;
-    }
-  }
-
-  /// Limpia manualmente de la base de datos cualquier cuenta no verificada que haya superado los 30 minutos
-  Future<int> purgeExpiredUnverifiedUsers() async {
-    if (!isConnected || _db == null) return 0;
-    try {
-      final collection = _db!.collection('users');
-      final nowStr = DateTime.now().toIso8601String();
-      final result = await collection.deleteMany(
-        where.eq('isVerified', false).lte('verificationExpiresAt', nowStr),
-      );
-      final count = result.nRemoved;
-      if (count > 0) {
-        debugPrint('[MongoDB] Se purgaron $count cuentas no verificadas expiradas (>30 min).');
-      }
-      return count;
-    } catch (e) {
-      debugPrint('[MongoDB] Error al purgar usuarios expirados: $e');
-      return 0;
     }
   }
 

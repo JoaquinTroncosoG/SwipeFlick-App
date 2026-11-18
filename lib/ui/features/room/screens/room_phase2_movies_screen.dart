@@ -151,7 +151,7 @@ class _RoomPhase2MoviesScreenState extends State<RoomPhase2MoviesScreen> {
     }
 
     // Si somos host, registrar en Atlas para todos
-    if (isHost && room != null && list.isNotEmpty) {
+    if (isHost && list.isNotEmpty) {
       await roomService.setRoomMovieDeck(list);
     }
 

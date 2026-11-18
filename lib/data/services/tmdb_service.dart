@@ -96,7 +96,7 @@ class TmdbService {
   String _getDailyCacheKey(String prefix) {
     final now = DateTime.now();
     final dateStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
-    return '${_cachePrefix}${prefix}_$dateStr';
+    return '$_cachePrefix${prefix}_$dateStr';
   }
 
   /// Obtener películas en tendencia (actualizado automáticamente cada 24 horas vía TMDB Day Trending)
@@ -185,7 +185,7 @@ class TmdbService {
       final startPage = 1 + dailyPageOffset;
 
       final provTag = providerIds.isNotEmpty ? '_p${providerIds.join("-")}' : '';
-      final streamingTag = effectiveStreamingOnly ? '_stream_${region}$provTag\_' : '_all_';
+      final streamingTag = effectiveStreamingOnly ? '_stream_${region}${provTag}_' : '_all_';
       final cacheKey = _getDailyCacheKey('disc_${genreIds.join("_")}_${streamingTag}p${pages}_s$startPage');
       final cached = await _getFromCache(cacheKey);
       if (cached != null) {

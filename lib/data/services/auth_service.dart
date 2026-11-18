@@ -196,14 +196,6 @@ class AuthService extends ChangeNotifier {
     return true;
   }
 
-  Future<void> loginAsGuest([String? name]) async {
-    _currentUser = UserModel.createDemo(
-      name: name ?? 'Cinéfilo_${(DateTime.now().millisecond % 900) + 100}',
-    );
-    await _saveUser();
-    notifyListeners();
-  }
-
   Future<void> updateUsername(String newName) async {
     if (_currentUser == null) return;
     final cleanName = newName.trim();

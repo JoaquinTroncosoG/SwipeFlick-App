@@ -261,7 +261,8 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
                     ),
                     Switch(
                       value: _excludeMatches,
-                      activeColor: AppColors.accent,
+                      activeThumbColor: AppColors.accent,
+                      activeTrackColor: AppColors.surfaceElevated,
                       onChanged: (val) => setState(() => _excludeMatches = val),
                     ),
                   ],
@@ -318,7 +319,8 @@ class _CreateRoomDialogState extends State<CreateRoomDialog> {
                         ),
                         Switch(
                           value: _streamingOnly,
-                          activeColor: AppColors.accent,
+                          activeThumbColor: AppColors.accent,
+                          activeTrackColor: AppColors.surfaceElevated,
                           onChanged: (val) => setState(() => _streamingOnly = val),
                         ),
                       ],

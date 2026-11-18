@@ -69,13 +69,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
       } else {
         await favService.clearFavorites();
       }
-      if (mounted) {
-        CinemaSnackBar.show(
-          context,
-          isMatchesTab ? 'Historial de matches borrado con éxito.' : 'Tu lista ha sido vaciada.',
-          icon: Icons.delete_outline_rounded,
-        );
-      }
+      if (!mounted) return;
+      CinemaSnackBar.show(
+        context,
+        isMatchesTab ? 'Historial de matches borrado con éxito.' : 'Tu lista ha sido vaciada.',
+        icon: Icons.delete_outline_rounded,
+      );
     }
   }
 
