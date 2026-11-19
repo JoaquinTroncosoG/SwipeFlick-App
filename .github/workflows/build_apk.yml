@@ -99,5 +99,4 @@ jobs:
           gh release create v1.27.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk \
             --target main \
             --title "SwipeFlick v1.27.0 (APK Android) - Optimized & Hardened" \
-            --notes "Versión optimizada y reforzada de SwipeFlick (v1.27.0 - Cambio #28). Purgado completo del runner Windows, eliminación de código y métodos obsoletos, minificación R8/ProGuard activa, almacenamiento seguro KeyStore y estabilidad de conexión MongoDB Atlas." \
-            --clobber
+            --notes "Versión optimizada y reforzada de SwipeFlick (v1.27.0 - Cambio #28). Purgado completo del runner Windows, eliminación de código y métodos obsoletos, minificación R8/ProGuard activa, almacenamiento seguro KeyStore y estabilidad de conexión MongoDB Atlas."
