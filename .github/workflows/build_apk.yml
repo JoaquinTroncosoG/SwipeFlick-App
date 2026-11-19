@@ -91,8 +91,8 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          gh release delete v1.30.0-apk --yes --cleanup-tag || true
           gh release create v1.30.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.30.0.apk \
             --target main \
             --title "SwipeFlick v1.30.0 (APK Android) - Build 31" \
-            --notes "Versión actualizada de SwipeFlick (v1.30.0 - Cambio #31). Blindaje de persistencia con índice TTL condicional (las cuentas verificadas no expiran, cuentas no verificadas expiran en 30 min), verificación obligatoria de estado en registro y login, y compilación universal APK Android." \
-            --clobber || gh release upload v1.30.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.30.0.apk --clobber
+            --notes "Versión actualizada de SwipeFlick (v1.30.0 - Cambio #31). Blindaje de persistencia con índice TTL condicional (las cuentas verificadas no expiran, cuentas no verificadas expiran en 30 min), verificación obligatoria de estado en registro y login, y compilación universal APK Android."
