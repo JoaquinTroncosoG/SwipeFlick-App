@@ -36,9 +36,9 @@ class MajorStreamingProvider {
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.27.0';
-  static const int changeCounter = 29;
-  static const String appVersionDisplay = 'v1.27.0 • Cambio #29';
+  static const String appVersion = '1.29.0';
+  static const int changeCounter = 30;
+  static const String appVersionDisplay = 'v1.29.0 • Cambio #30';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -188,7 +188,12 @@ class AppConstants {
       'description': 'Eliminación completa del runner y dependencias de Windows Desktop (reducción drástica de peso y resolución de avisos de symlinks/Developer Mode); purgado de métodos no utilizados y obsoletos en servicios (MongoDbService, AuthService); limpieza de imports innecesarios y resolución de advertencias de análisis estático en Dart; y purga de 141 MB de artefactos de compilación residuales.',
     },
     {
-      'version': '1.27.0 (Cambio #29)',
+      'version': '1.28.0 (Cambio #29)',
+      'title': 'Estabilidad de Conexión en MongoDB Atlas y Corrección de Releases',
+      'description': 'Normalización automática de URIs con safeAtlas=true para prevenir reseteos de socket TLS en MongoDB Atlas; apertura de conexión con verificación segura; diferimiento de tareas de mantenimiento en background para evitar colisiones con peticiones prioritarias del usuario; y ajuste de comandos en GitHub Actions para publicación limpia de releases.',
+    },
+    {
+      'version': '1.29.0 (Cambio #30)',
       'title': 'Persistencia Permanente de Matches, Carga Extendida de Catálogo y Desactivación de Anuncios',
       'description': 'Blindaje definitivo de la lista de matches y biblioteca vinculada a la cuenta para siempre (desactivación de TTL en cuentas verificadas en MongoDB Atlas, upsert automático y fusión inteligente sin pérdida de datos); carga extendida en la pantalla principal al llegar al final del catálogo/top de películas (paginación infinita TMDB con desliz extendido y botón de recarga interactiva); y desactivación de ventanas emergentes de publicidad previa a la publicación en Google Play Store.',
     },

@@ -77,14 +77,14 @@ jobs:
           mkdir -p build/app/outputs/flutter-apk
           APK_FILE=$(find . -name "*release*.apk" -o -name "app-release.apk" | head -n 1)
           echo "Found APK file to package: $APK_FILE"
-          cp "$APK_FILE" build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk
-          ls -lh build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk
+          cp "$APK_FILE" build/app/outputs/flutter-apk/SwipeFlick-v1.29.0.apk
+          ls -lh build/app/outputs/flutter-apk/SwipeFlick-v1.29.0.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: SwipeFlick-Android-APK
-          path: build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk
+          path: build/app/outputs/flutter-apk/SwipeFlick-v1.29.0.apk
           retention-days: 30
 
       - name: Publish GitHub Release with APK
@@ -96,7 +96,7 @@ jobs:
             echo "Deleting release: $tag"
             gh release delete "$tag" --yes --cleanup-tag || true
           done
-          gh release create v1.27.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk \
+          gh release create v1.29.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.29.0.apk \
             --target main \
-            --title "SwipeFlick v1.27.0 (APK Android) - Build 29" \
-            --notes "Versión actualizada de SwipeFlick (v1.27.0 - Cambio #29). Persistencia blindada permanente de matches y favoritos vinculada a la cuenta de por vida en MongoDB Atlas (purgado de TTL en cuentas verificadas), carga extendida en cartelera por desliz táctil, desactivación de anuncios emergentes y conexión segura safeAtlas."
+            --title "SwipeFlick v1.29.0 (APK Android) - Build 30" \
+            --notes "Versión actualizada de SwipeFlick (v1.29.0 - Cambio #30). Persistencia blindada permanente de matches y favoritos vinculada a la cuenta de por vida en MongoDB Atlas (purgado de TTL en cuentas verificadas), carga extendida en cartelera por desliz táctil, desactivación de anuncios emergentes y conexión segura safeAtlas."
