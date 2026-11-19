@@ -92,10 +92,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Purging all previous releases to secure artifacts..."
-          for rel in $(gh release list --limit 100 | awk '{print $1}'); do
-            echo "Deleting release: $rel"
-            gh release delete "$rel" --yes || true
+          for tag in $(gh release list --limit 100 --json tagName -q '.[].tagName'); do
+            echo "Deleting release: $tag"
+            gh release delete "$tag" --yes --cleanup-tag || true
           done
-          git tag -d v1.27.0-apk 2>/dev/null || true
-          git push origin :refs/tags/v1.27.0-apk 2>/dev/null || true
-          gh release create v1.27.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk --title "SwipeFlick v1.27.0 (APK Android) - Optimized & Hardened" --notes "Versión optimizada y reforzada de SwipeFlick (v1.27.0 - Cambio #28). Purgado completo del runner Windows, eliminación de código y métodos obsoletos, minificación R8/ProGuard activa y almacenamiento seguro KeyStore."
+          gh release create v1.27.0-apk build/app/outputs/flutter-apk/SwipeFlick-v1.27.0.apk \
+            --target main \
+            --title "SwipeFlick v1.27.0 (APK Android) - Optimized & Hardened" \
+            --notes "Versión optimizada y reforzada de SwipeFlick (v1.27.0 - Cambio #28). Purgado completo del runner Windows, eliminación de código y métodos obsoletos, minificación R8/ProGuard activa, almacenamiento seguro KeyStore y estabilidad de conexión MongoDB Atlas." \
+            --clobber
