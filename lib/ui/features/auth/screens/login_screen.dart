@@ -100,6 +100,19 @@ class _LoginScreenState extends State<LoginScreen> {
     if (credentialsValid) {
       await rateLimit.recordSuccessfulLogin();
       final userDoc = await mongo.findUserByEmail(safeEmail);
+
+      // Bloquear acceso a cuentas que no completaron la verificación OTP para proteger la base de datos
+      if (userDoc != null && userDoc['isVerified'] == false) {
+        messenger.showSnackBar(
+          const SnackBar(
+            backgroundColor: AppColors.error,
+            content: Text('Esta cuenta aún no ha sido verificada. Debes verificar el código de 6 dígitos enviado a tu correo antes de iniciar sesión.'),
+            duration: Duration(seconds: 5),
+          ),
+        );
+        return;
+      }
+
       final remoteUsername = userDoc?['username'] as String?;
       final remoteAvatar = userDoc?['avatarUrl'] as String?;
       final remoteCountry = userDoc?['country'] as String?;

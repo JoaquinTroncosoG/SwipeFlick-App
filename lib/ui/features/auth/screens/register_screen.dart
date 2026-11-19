@@ -296,8 +296,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   final messenger = ScaffoldMessenger.of(context);
                   final navigator = Navigator.of(context);
 
-                  // Activar en MongoDB Atlas si está conectado
-                  if (mongo.isConnected) {
+                  // Activar en MongoDB Atlas
+                  if (mongo.isConnected || await mongo.ensureConnected()) {
                     await mongo.verifyAndActivateUser(
                       email: email,
                       enteredOtp: entered,

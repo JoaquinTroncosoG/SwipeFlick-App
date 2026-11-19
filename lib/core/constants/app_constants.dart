@@ -36,9 +36,9 @@ class MajorStreamingProvider {
 class AppConstants {
   static const String appName = 'SwipeFlick';
   static const String appTagline = 'Descubre qué ver hoy, solo o con amigos';
-  static const String appVersion = '1.29.0';
-  static const int changeCounter = 30;
-  static const String appVersionDisplay = 'v1.29.0 • Cambio #30';
+  static const String appVersion = '1.30.0';
+  static const int changeCounter = 31;
+  static const String appVersionDisplay = 'v1.30.0 • Cambio #31';
 
   /// Registro histórico de iteraciones y cambios desarrollados
   static const List<Map<String, String>> changeLog = [
@@ -196,6 +196,11 @@ class AppConstants {
       'version': '1.29.0 (Cambio #30)',
       'title': 'Persistencia Permanente de Matches, Carga Extendida de Catálogo y Desactivación de Anuncios',
       'description': 'Blindaje definitivo de la lista de matches y biblioteca vinculada a la cuenta para siempre (desactivación de TTL en cuentas verificadas en MongoDB Atlas, upsert automático y fusión inteligente sin pérdida de datos); carga extendida en la pantalla principal al llegar al final del catálogo/top de películas (paginación infinita TMDB con desliz extendido y botón de recarga interactiva); y desactivación de ventanas emergentes de publicidad previa a la publicación en Google Play Store.',
+    },
+    {
+      'version': '1.30.0 (Cambio #31)',
+      'title': 'TTL Condicional en Atlas, Verificación Obligatoria y Publicación Confiable',
+      'description': 'Incorporación de partialFilterExpression en el índice TTL de MongoDB Atlas (las cuentas verificadas quedan blindadas e inmunes a borrados, mientras que las cuentas no verificadas mantienen el límite estricto de 30 minutos contra spam); verificación obligatoria de estado activo en registro y bloqueo de inicio de sesión en cuentas pendientes de validación OTP; reintentos automáticos de conexión a Atlas; y publicación robusta de releases en GitHub Actions sin pérdida de tags ni descargas 404.',
     },
   ];
 

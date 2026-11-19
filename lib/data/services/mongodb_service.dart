@@ -282,6 +282,7 @@ class MongoDbService extends ChangeNotifier {
               'key': {'verificationExpiresAtDate': 1},
               'name': 'ttl_unverified_30min',
               'expireAfterSeconds': 0,
+              'partialFilterExpression': {'isVerified': false},
             }
           ],
         });
@@ -295,6 +296,7 @@ class MongoDbService extends ChangeNotifier {
                 'key': {'verificationExpiresAtDate': 1},
                 'name': 'ttl_unverified_30min',
                 'expireAfterSeconds': 0,
+                'partialFilterExpression': {'isVerified': false},
               }
             ],
           });
@@ -446,12 +448,19 @@ class MongoDbService extends ChangeNotifier {
         upsert: true,
       );
 
-      // Intentar crear índice para fecha de expiración
+      // Intentar crear índice para fecha de expiración condicional
       try {
-        await collection.createIndex(
-          keys: {'verificationExpiresAtDate': 1},
-          name: 'ttl_unverified_30min',
-        );
+        await _db!.runCommand({
+          'createIndexes': 'users',
+          'indexes': [
+            {
+              'key': {'verificationExpiresAtDate': 1},
+              'name': 'ttl_unverified_30min',
+              'expireAfterSeconds': 0,
+              'partialFilterExpression': {'isVerified': false},
+            }
+          ],
+        });
       } catch (_) {}
 
       return true;
