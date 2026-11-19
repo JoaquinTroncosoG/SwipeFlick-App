@@ -150,14 +150,15 @@ class _SoloSwipeScreenState extends State<SoloSwipeScreen> {
       _movieDeckIndex++;
     });
 
-    // Comprobar monetización: mostrar anuncio cada 12 swipes
-    if (_swipesCountSinceLastAd >= AppConstants.adIntervalMovieSwipes) {
+    // Comprobar monetización: mostrar anuncio cada 12 swipes (solo si están habilitados para producción)
+    if (AppConstants.enableInterstitialAds && _swipesCountSinceLastAd >= AppConstants.adIntervalMovieSwipes) {
       _swipesCountSinceLastAd = 0;
       _showInterstitialAd();
     }
   }
 
   void _showInterstitialAd() {
+    if (!AppConstants.enableInterstitialAds) return;
     showDialog(
       context: context,
       barrierDismissible: false,

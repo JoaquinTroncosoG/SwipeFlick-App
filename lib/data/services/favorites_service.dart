@@ -38,8 +38,20 @@ class FavoritesService extends ChangeNotifier {
         _favorites.addAll(list);
       } catch (_) {}
     } else {
-      // Para cuentas nuevas, la biblioteca comienza estrictamente VACÍA (sin mocks)
-      _favorites.clear();
+      // Migrar favoritos guardados en sesión previa/invitado si existen
+      final defaultFavs = prefs.getString(_defaultFavsPrefKey);
+      if (defaultFavs != null && _currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+        try {
+          final list = (jsonDecode(defaultFavs) as List)
+              .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
+              .toList();
+          _favorites.clear();
+          _favorites.addAll(list);
+          await _saveLocalFavorites();
+        } catch (_) {}
+      } else {
+        _favorites.clear();
+      }
     }
 
     // 2. Cargar historial de matches local
@@ -53,7 +65,20 @@ class FavoritesService extends ChangeNotifier {
         _matchesHistory.addAll(list);
       } catch (_) {}
     } else {
-      _matchesHistory.clear();
+      // Migrar historial de matches guardado en sesión previa/invitado si existen
+      final defaultMatches = prefs.getString(_defaultMatchesPrefKey);
+      if (defaultMatches != null && _currentUserEmail != null && _currentUserEmail!.isNotEmpty) {
+        try {
+          final list = (jsonDecode(defaultMatches) as List)
+              .map((m) => MovieModel.fromJson(m as Map<String, dynamic>))
+              .toList();
+          _matchesHistory.clear();
+          _matchesHistory.addAll(list);
+          await _saveLocalMatches();
+        } catch (_) {}
+      } else {
+        _matchesHistory.clear();
+      }
     }
 
     notifyListeners();
@@ -69,29 +94,44 @@ class FavoritesService extends ChangeNotifier {
     if (_currentUserEmail != null && _currentUserEmail!.isNotEmpty && _mongoService != null) {
       try {
         if (_mongoService!.isConnected || await _mongoService!.ensureConnected()) {
-          // Consultar favoritos de MongoDB Atlas
+          // 1. Sincronizar favoritos: fusión inteligente sin pérdida de datos
           final cloudFavsRaw = await _mongoService!.getUserFavorites(_currentUserEmail!);
           if (cloudFavsRaw.isNotEmpty) {
             final cloudFavs = cloudFavsRaw.map((m) => MovieModel.fromJson(m)).toList();
+            final map = <int, MovieModel>{};
+            for (final m in cloudFavs) {
+              map[m.id] = m;
+            }
+            for (final m in _favorites) {
+              map[m.id] = m;
+            }
             _favorites.clear();
-            _favorites.addAll(cloudFavs);
+            _favorites.addAll(map.values);
             await _saveLocalFavorites();
-          } else if (_favorites.isNotEmpty) {
-            // Si en Atlas está vacío pero localmente hay guardadas, respaldar a la nube
+          }
+          if (_favorites.isNotEmpty) {
             await _mongoService!.saveUserFavorites(
               _currentUserEmail!,
               _favorites.map((m) => m.toJson()).toList(),
             );
           }
 
-          // Consultar historial de matches de MongoDB Atlas
+          // 2. Sincronizar historial de matches: fusión inteligente sin pérdida de datos
           final cloudMatchesRaw = await _mongoService!.getUserMatchesHistory(_currentUserEmail!);
           if (cloudMatchesRaw.isNotEmpty) {
             final cloudMatches = cloudMatchesRaw.map((m) => MovieModel.fromJson(m)).toList();
+            final map = <int, MovieModel>{};
+            for (final m in cloudMatches) {
+              map[m.id] = m;
+            }
+            for (final m in _matchesHistory) {
+              map[m.id] = m;
+            }
             _matchesHistory.clear();
-            _matchesHistory.addAll(cloudMatches);
+            _matchesHistory.addAll(map.values);
             await _saveLocalMatches();
-          } else if (_matchesHistory.isNotEmpty) {
+          }
+          if (_matchesHistory.isNotEmpty) {
             await _mongoService!.saveUserMatchesHistory(
               _currentUserEmail!,
               _matchesHistory.map((m) => m.toJson()).toList(),

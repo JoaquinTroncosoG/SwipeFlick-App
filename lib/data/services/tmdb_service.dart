@@ -146,6 +146,45 @@ class TmdbService {
     return MockMoviesData.sampleMovies;
   }
 
+  /// Obtener una página específica de películas en tendencia de TMDB para paginación extendida
+  Future<List<MovieModel>> getTrendingMoviesPage({required int page}) async {
+    final key = effectiveApiKey;
+    if (key.isEmpty) return [];
+
+    final cacheKey = _getDailyCacheKey('trending_day_p$page');
+    final cached = await _getFromCache(cacheKey);
+    if (cached != null) {
+      try {
+        final decoded = jsonDecode(cached) as List;
+        final list = decoded.map((m) => MovieModel.fromJson(m as Map<String, dynamic>)).toList();
+        if (list.isNotEmpty) return list;
+      } catch (_) {}
+    }
+
+    try {
+      final url = Uri.parse('$_baseUrl/trending/movie/day?language=es-ES&page=$page&api_key=$key');
+      final res = await http.get(url).timeout(const Duration(seconds: 6));
+      if (res.statusCode == 200) {
+        final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+        final results = decoded['results'] as List? ?? [];
+        final List<MovieModel> pageMovies = [];
+        for (final item in results) {
+          final movie = MovieModel.fromJson(item as Map<String, dynamic>);
+          if (movie.posterUrl.isNotEmpty) {
+            pageMovies.add(movie);
+          }
+        }
+        if (pageMovies.isNotEmpty) {
+          await _saveToCache(cacheKey, jsonEncode(pageMovies.map((m) => m.toJson()).toList()));
+        }
+        return pageMovies;
+      }
+    } catch (e) {
+      debugPrint('[TmdbService] Error al consultar página $page de tendencias: $e');
+    }
+    return [];
+  }
+
   /// Filtrar películas por géneros aprobados en el swipe.
   /// Si [streamingOnly] es true, descarta títulos que solo están en cines y
   /// consulta únicamente películas disponibles en plataformas de streaming (Netflix, Disney+, Max, etc.).

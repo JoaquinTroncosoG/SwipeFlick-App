@@ -261,6 +261,19 @@ class MongoDbService extends ChangeNotifier {
       }
 
       // 2. Asegurar índice TTL en colección users (cuentas no verificadas de 30 min)
+      // y purgar claves TTL de cualquier cuenta verificada para evitar borrados accidentales
+      try {
+        await _db!.collection('users').updateMany(
+          where.eq('isVerified', true).and(where.exists('verificationExpiresAtDate')),
+          modify
+              .unset('verificationExpiresAtDate')
+              .unset('verificationExpiresAt')
+              .unset('otpHash')
+              .unset('otpCode')
+              .unset('otpAttempts'),
+        );
+      } catch (_) {}
+
       try {
         await _db!.runCommand({
           'createIndexes': 'users',
@@ -416,6 +429,15 @@ class MongoDbService extends ChangeNotifier {
         }
         modifier.set('verificationExpiresAt', expiresDate.toIso8601String());
         modifier.set('verificationExpiresAtDate', expiresDate);
+      } else {
+        // Cuentas verificadas: DESACTIVAR y PURGAR claves de expiración TTL y OTPs temporales
+        // para garantizar que la cuenta y sus datos queden ligados de forma permanente en Atlas
+        modifier
+            .unset('verificationExpiresAt')
+            .unset('verificationExpiresAtDate')
+            .unset('otpHash')
+            .unset('otpCode')
+            .unset('otpAttempts');
       }
 
       await collection.updateOne(
@@ -1047,6 +1069,7 @@ class MongoDbService extends ChangeNotifier {
         modify
             .set('favorites', favorites)
             .set('updatedAt', DateTime.now().toIso8601String()),
+        upsert: true,
       );
       return result.isSuccess;
     } catch (e) {
@@ -1093,6 +1116,7 @@ class MongoDbService extends ChangeNotifier {
         modify
             .set('matches_history', history)
             .set('updatedAt', DateTime.now().toIso8601String()),
+        upsert: true,
       );
       return result.isSuccess;
     } catch (e) {

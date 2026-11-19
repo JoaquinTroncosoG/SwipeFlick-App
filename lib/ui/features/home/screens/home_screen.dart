@@ -34,17 +34,35 @@ class _HomeScreenState extends State<HomeScreen> {
   MovieModel? _heroMovie;
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  int _currentTrendingPage = 2;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
 
   @override
   void initState() {
     super.initState();
+    _scrollController.addListener(_onScroll);
     _loadMovies();
   }
 
   @override
   void dispose() {
+    _scrollController.removeListener(_onScroll);
+    _scrollController.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (_searchQuery.isNotEmpty || _isLoadingMore || !_hasMore) return;
+    if (_scrollController.hasClients) {
+      final pos = _scrollController.position;
+      // Detección de desliz extendido: cuando el usuario llega al final del top de películas
+      if (pos.pixels >= pos.maxScrollExtent - 180) {
+        _loadMoreMovies();
+      }
+    }
   }
 
   Future<void> _loadMovies({bool forceRefresh = false}) async {
@@ -53,11 +71,49 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!mounted) return;
     setState(() {
       _trendingMovies = movies;
+      _currentTrendingPage = 2;
+      _hasMore = true;
+      _isLoadingMore = false;
       if (movies.isNotEmpty) {
         _heroMovie = movies.first;
       }
       _isLoading = false;
     });
+  }
+
+  Future<void> _loadMoreMovies() async {
+    if (_isLoadingMore || !_hasMore || _searchQuery.isNotEmpty) return;
+    setState(() => _isLoadingMore = true);
+
+    try {
+      final tmdb = context.read<TmdbService>();
+      final nextPage = _currentTrendingPage + 1;
+      final newMovies = await tmdb.getTrendingMoviesPage(page: nextPage);
+      if (!mounted) return;
+
+      if (newMovies.isEmpty) {
+        setState(() {
+          _hasMore = false;
+          _isLoadingMore = false;
+        });
+      } else {
+        setState(() {
+          final existingIds = _trendingMovies.map((m) => m.id).toSet();
+          final filtered = newMovies.where((m) => !existingIds.contains(m.id)).toList();
+          if (filtered.isEmpty) {
+            _hasMore = false;
+          } else {
+            _trendingMovies.addAll(filtered);
+            _currentTrendingPage = nextPage;
+          }
+          _isLoadingMore = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _isLoadingMore = false);
+      }
+    }
   }
 
   @override
@@ -82,12 +138,26 @@ class _HomeScreenState extends State<HomeScreen> {
       backgroundColor: AppColors.background,
       body: _isLoading
           ? const Center(child: CircularProgressIndicator(color: AppColors.accent))
-          : RefreshIndicator(
-              color: AppColors.accent,
-              backgroundColor: AppColors.surfaceElevated,
-              onRefresh: () => _loadMovies(forceRefresh: true),
-              child: CustomScrollView(
-              slivers: [
+          : NotificationListener<ScrollNotification>(
+              onNotification: (notification) {
+                if (_searchQuery.isEmpty && !_isLoadingMore && _hasMore) {
+                  // Detección de desliz extendido táctil (overscroll en el fondo o cercanía al límite)
+                  if (notification is OverscrollNotification && notification.overscroll > 6) {
+                    _loadMoreMovies();
+                  } else if (notification.metrics.extentAfter < 160) {
+                    _loadMoreMovies();
+                  }
+                }
+                return false;
+              },
+              child: RefreshIndicator(
+                color: AppColors.accent,
+                backgroundColor: AppColors.surfaceElevated,
+                onRefresh: () => _loadMovies(forceRefresh: true),
+                child: CustomScrollView(
+                  controller: _scrollController,
+                  physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+                  slivers: [
                 // AppBar con logo, título y badge de versión / contador de cambio
                 SliverAppBar(
                   floating: true,
@@ -408,10 +478,87 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
 
+                // Pie de página de carga extendida del catálogo (Top de Películas)
+                if (_searchQuery.isEmpty)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 20, right: 20, top: 16, bottom: 20),
+                      child: Center(
+                        child: _isLoadingMore
+                            ? Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceElevated,
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2.4,
+                                        color: AppColors.accent,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Text(
+                                      'Cargando más películas del catálogo...',
+                                      style: AppTextStyles.caption.copyWith(
+                                        color: AppColors.accent,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : (_hasMore
+                                ? InkWell(
+                                    onTap: _loadMoreMovies,
+                                    borderRadius: BorderRadius.circular(16),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceElevated,
+                                        borderRadius: BorderRadius.circular(16),
+                                        border: Border.all(color: AppColors.surfaceBorder),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.swipe_up_rounded, size: 20, color: AppColors.accent),
+                                          const SizedBox(width: 10),
+                                          Text(
+                                            'Desliza para ver más del catálogo',
+                                            style: AppTextStyles.caption.copyWith(
+                                              color: AppColors.textPrimary,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          const Icon(Icons.arrow_downward_rounded, size: 14, color: AppColors.textSecondary),
+                                        ],
+                                      ),
+                                    ),
+                                  )
+                                : Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                                    child: Text(
+                                      'Has explorado todo el catálogo disponible por hoy ✨',
+                                      style: AppTextStyles.caption.copyWith(color: AppColors.textSecondary),
+                                    ),
+                                  )),
+                      ),
+                    ),
+                  ),
+
                 const SliverToBoxAdapter(child: SizedBox(height: 32)),
               ],
             ),
           ),
+        ),
     );
   }
 

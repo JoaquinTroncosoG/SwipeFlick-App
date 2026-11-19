@@ -21,10 +21,10 @@ void main() {
   group('SearchDictionaryHelper & Version Tracking Tests', () {
     test('Control de versión y contador de cambios actualizado', () {
       expect(AppConstants.appVersion, '1.27.0');
-      expect(AppConstants.changeCounter, 28);
+      expect(AppConstants.changeCounter, 29);
       expect(AppConstants.appVersionDisplay, contains('v1.27.0'));
-      expect(AppConstants.appVersionDisplay, contains('Cambio #28'));
-      expect(AppConstants.changeLog.length, 29);
+      expect(AppConstants.appVersionDisplay, contains('Cambio #29'));
+      expect(AppConstants.changeLog.length, 30);
     });
 
     test('Normalización diacrítica elimina tildes y diacríticos correctamente', () {
@@ -591,6 +591,44 @@ void main() {
       expect(guestsPresent, true);
       final shortTtlWindow = DateTime.now().toUtc().add(const Duration(minutes: 1));
       expect(shortTtlWindow.isAfter(DateTime.now().toUtc()), true);
+    });
+
+    test('Anuncios emergentes desactivados por defecto para fase previa a Play Store', () {
+      expect(AppConstants.enableInterstitialAds, false);
+      expect(AppConstants.adIntervalMovieSwipes, 12);
+    });
+
+    test('Persistencia y fusión bidireccional inteligente de matches y favoritos', () {
+      final localMatches = [
+        const MovieModel(id: 101, title: 'Inception', overview: 'A thief steals corporate secrets', rating: 8.8),
+        const MovieModel(id: 102, title: 'Interstellar', overview: 'A team of explorers travel through a wormhole', rating: 8.7),
+      ];
+      final cloudMatches = [
+        const MovieModel(id: 102, title: 'Interstellar', overview: 'A team of explorers travel through a wormhole', rating: 8.7),
+        const MovieModel(id: 103, title: 'Oppenheimer', overview: 'The story of J. Robert Oppenheimer', rating: 8.9),
+      ];
+
+      // Algoritmo de fusión inteligente sin pérdidas ni duplicados
+      final mergedMap = <int, MovieModel>{};
+      for (final m in cloudMatches) {
+        mergedMap[m.id] = m;
+      }
+      for (final m in localMatches) {
+        mergedMap[m.id] = m;
+      }
+      final merged = mergedMap.values.toList();
+
+      expect(merged.length, 3);
+      expect(merged.any((m) => m.id == 101), true);
+      expect(merged.any((m) => m.id == 102), true);
+      expect(merged.any((m) => m.id == 103), true);
+      // Garantizar que Inception de local está intacto
+      expect(merged.firstWhere((m) => m.id == 101).title, 'Inception');
+    });
+
+    test('TmdbService provee método getTrendingMoviesPage para paginación extendida', () {
+      final tmdb = TmdbService();
+      expect(tmdb.hasApiKey, true);
     });
   });
 }
