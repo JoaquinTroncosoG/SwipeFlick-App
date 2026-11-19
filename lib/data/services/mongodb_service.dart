@@ -21,7 +21,7 @@ class MongoDbService extends ChangeNotifier {
   /// Cadena de conexión predeterminada configurada para SwipeFlick (con fallback seguro)
   static String get defaultUri {
     const fromEnv = String.fromEnvironment('MONGODB_URI', defaultValue: '');
-    if (fromEnv.isNotEmpty) return fromEnv;
+    if (fromEnv.isNotEmpty) return _normalizeUri(fromEnv);
     try {
       const xorBytes = [
         82, 80, 81, 88, 80, 91, 93, 20, 76, 77, 73, 5, 16, 16, 85, 80, 94, 78,
@@ -32,10 +32,22 @@ class MongoDbService extends ChangeNotifier {
         72, 86, 79, 90, 89, 83, 86, 92, 84, 0, 77, 90, 75, 77, 70, 104, 77, 86,
         75, 90, 76, 2, 75, 77, 74, 90, 25, 72, 2, 82, 94, 85, 80, 77, 86, 75, 70
       ];
-      return String.fromCharCodes(xorBytes.map((b) => b ^ 0x3F));
+      final decoded = String.fromCharCodes(xorBytes.map((b) => b ^ 0x3F));
+      return _normalizeUri(decoded);
     } catch (_) {
       return '';
     }
+  }
+
+  /// Asegura los parámetros óptimos para la conexión a MongoDB Atlas (safeAtlas y cifrado)
+  static String _normalizeUri(String rawUri) {
+    var uri = rawUri.trim();
+    if (uri.isEmpty) return uri;
+    if (uri.contains('mongodb.net') && !uri.contains('safeAtlas=true')) {
+      final separator = uri.contains('?') ? '&' : '?';
+      uri = '$uri${separator}safeAtlas=true';
+    }
+    return uri;
   }
 
   String? _uri;
@@ -117,6 +129,8 @@ class MongoDbService extends ChangeNotifier {
     return await connect(uri: _uri, dbName: _dbName);
   }
 
+  bool _isMaintenanceRunning = false;
+
   /// Intenta conectar a MongoDB
   Future<bool> connect({String? uri, String? dbName}) async {
     var targetUri = uri ?? _uri;
@@ -133,6 +147,8 @@ class MongoDbService extends ChangeNotifier {
       return false;
     }
 
+    targetUri = _normalizeUri(targetUri);
+
     _status = MongoDbStatus.connecting;
     _lastError = null;
     notifyListeners();
@@ -146,7 +162,10 @@ class MongoDbService extends ChangeNotifier {
         onTimeout: () => throw TimeoutException('Tiempo de espera agotado al conectar a MongoDB'),
       );
 
-      await _db!.open().timeout(
+      final isSecure = targetUri.startsWith('mongodb+srv://') ||
+          targetUri.contains('ssl=true') ||
+          targetUri.contains('tls=true');
+      await _db!.open(secure: isSecure).timeout(
         const Duration(seconds: 12),
         onTimeout: () => throw TimeoutException('No se pudo abrir la conexión con MongoDB'),
       );
@@ -158,8 +177,13 @@ class MongoDbService extends ChangeNotifier {
       debugPrint('[MongoDB] ¡Conexión exitosa a la base de datos "$_dbName"!');
       notifyListeners();
 
-      // Mantenimiento en background: índices TTL y purga de salas expiradas/vacías
-      unawaited(_runBackgroundMaintenance());
+      // Mantenimiento diferido en background: índices TTL y purga de salas expiradas/vacías
+      // Se programa con retraso para permitir que las operaciones prioritarias del usuario se completen sin colisión
+      Future.delayed(const Duration(seconds: 2), () {
+        if (isConnected) {
+          _runBackgroundMaintenance();
+        }
+      });
 
       return true;
     } catch (e) {
@@ -173,6 +197,7 @@ class MongoDbService extends ChangeNotifier {
 
   /// Desconecta de la base de datos
   Future<void> disconnect() async {
+    _isMaintenanceRunning = false;
     try {
       if (_db != null && _db!.isConnected) {
         await _db!.close();
@@ -191,8 +216,12 @@ class MongoDbService extends ChangeNotifier {
     if (candidateUri.trim().isEmpty) return false;
     Db? testDb;
     try {
-      testDb = await Db.create(candidateUri).timeout(const Duration(seconds: 8));
-      await testDb.open().timeout(const Duration(seconds: 10));
+      final target = _normalizeUri(candidateUri);
+      testDb = await Db.create(target).timeout(const Duration(seconds: 8));
+      final isSecure = target.startsWith('mongodb+srv://') ||
+          target.contains('ssl=true') ||
+          target.contains('tls=true');
+      await testDb.open(secure: isSecure).timeout(const Duration(seconds: 10));
       final connected = testDb.isConnected;
       await testDb.close();
       return connected;
@@ -207,7 +236,9 @@ class MongoDbService extends ChangeNotifier {
 
   /// Ejecuta tareas de mantenimiento en segundo plano: creación de índices TTL y purga de salas viejas
   Future<void> _runBackgroundMaintenance() async {
+    if (_isMaintenanceRunning) return;
     if (_db == null || !_db!.isConnected) return;
+    _isMaintenanceRunning = true;
     try {
       // 1. Asegurar índice TTL en colección rooms (expiración automática en Atlas)
       try {
@@ -261,6 +292,8 @@ class MongoDbService extends ChangeNotifier {
       await purgeExpiredRooms();
     } catch (e) {
       debugPrint('[MongoDB] Error en _runBackgroundMaintenance: $e');
+    } finally {
+      _isMaintenanceRunning = false;
     }
   }
 
